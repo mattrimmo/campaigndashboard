@@ -6,6 +6,10 @@ on:
     - cron: "0 6 * * *"
   workflow_dispatch: {}  # lets you trigger a manual run from the Actions tab
 
+concurrency:
+  group: sync
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
@@ -35,4 +39,5 @@ jobs:
           git config user.email "actions@users.noreply.github.com"
           git add data/history.json
           git diff --cached --quiet || git commit -m "Daily sync: $(date -u +%Y-%m-%d)"
+          git pull --rebase origin main
           git push
