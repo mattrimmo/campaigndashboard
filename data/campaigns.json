@@ -34,5 +34,14 @@
     "start_date": "2026-07-10",
     "isrc": "GBUM72603869",
     "status": "active"
+  },
+  {
+    "id": "c1784820044250",
+    "client": "CIRCOLOCO",
+    "artist": "ANOTR",
+    "track": "Silver Lines (feat. Emily Warren)",
+    "start_date": "2026-07-10",
+    "isrc": "CBEFB2604243",
+    "status": "active"
   }
 ]
