@@ -1,1 +1,15 @@
-{}
+{
+  "c1784819377284": [
+    {
+      "date": "2026-07-23",
+      "total_streams": 0,
+      "daily_streams": 0,
+      "editorial_count": 10,
+      "independent_count": 29,
+      "editorial_reach": 94092,
+      "independent_reach": 438788,
+      "estimated_revenue_gbp": 0.0,
+      "estimated_revenue_rate_gbp": 0.003
+    }
+  ]
+}
