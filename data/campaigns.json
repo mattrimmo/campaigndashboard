@@ -52,5 +52,14 @@
     "start_date": "2026-05-06",
     "isrc": "FR96X2683188",
     "status": "active"
+  },
+  {
+    "id": "c1784820206050",
+    "client": "THREE SIX ZERO",
+    "artist": "Josh Baker & Poppy Baskcomb",
+    "track": "My Place",
+    "start_date": "2026-07-03",
+    "isrc": "QT8JC2653525",
+    "status": "active"
   }
 ]
