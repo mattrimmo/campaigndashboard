@@ -43,5 +43,14 @@
     "start_date": "2026-07-10",
     "isrc": "CBEFB2604243",
     "status": "active"
+  },
+  {
+    "id": "c1784820133283",
+    "client": "OUT FIT",
+    "artist": "LYOD",
+    "track": "Summer Love",
+    "start_date": "2026-05-06",
+    "isrc": "FR96X2683188",
+    "status": "active"
   }
 ]
