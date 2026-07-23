@@ -7,65 +7,102 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root {
-    --bg: #0d1210;
-    --panel: #141b18;
-    --panel-border: #223028;
-    --text: #e7f0ea;
-    --text-dim: #8ba396;
-    --green: #1ed760;
-    --green-dim: #14401f;
-    --amber: #e0a848;
-    --red: #e0685a;
+    --page-bg: #EEEAF9;
+    --card-bg: #1D1440;
+    --card-bg-2: #241A4E;
+    --border: rgba(255,255,255,0.08);
+    --text: #F4F2FC;
+    --text-dim: #A79FC9;
+    --cyan: #3EE0C8;
+    --purple: #9B7BF5;
+    --pink: #FF5DA0;
+    --amber: #FFC15E;
+    --red: #FF5C7A;
+    --green: #35D07F;
     --mono: "IBM Plex Mono", "SF Mono", Consolas, monospace;
     --sans: "Inter", -apple-system, "Segoe UI", sans-serif;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); padding: 32px 40px 80px; }
-  header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 28px; flex-wrap: wrap; gap: 12px; }
-  h1 { font-family: var(--mono); font-size: 20px; font-weight: 600; letter-spacing: 0.02em; margin: 0; color: var(--green); }
-  h1 span { color: var(--text-dim); font-weight: 400; }
-  .controls { display: flex; gap: 10px; align-items: center; }
-  select, button, input[type=password], input[type=text] {
-    background: var(--panel); border: 1px solid var(--panel-border); color: var(--text);
-    font-family: var(--mono); font-size: 12px; padding: 7px 10px; border-radius: 4px;
+  body {
+    margin: 0;
+    background: var(--page-bg);
+    color: #2A2450;
+    font-family: var(--sans);
+    padding: 28px 36px 80px;
   }
-  button { cursor: pointer; }
-  button:hover { border-color: var(--green); }
-  button.primary { background: var(--green-dim); border-color: var(--green); color: var(--green); }
-  button.danger { background: #3a1c18; border-color: var(--red); color: var(--red); }
+  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; flex-wrap: wrap; gap: 12px; }
+  h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.01em; margin: 0; color: #2A2450; }
+  h1 span { color: #8B84AE; font-weight: 500; }
+  .controls select {
+    background: #fff; border: 1px solid #DCD5F0; color: #2A2450;
+    font-family: var(--sans); font-size: 13px; padding: 8px 12px; border-radius: 8px;
+  }
 
-  .breadcrumb { font-family: var(--mono); font-size: 12px; color: var(--text-dim); margin-bottom: 18px; }
-  .breadcrumb a { color: var(--green); text-decoration: none; cursor: pointer; }
+  .breadcrumb { font-size: 13px; color: #8B84AE; margin-bottom: 16px; }
+  .breadcrumb a { color: var(--purple); text-decoration: none; cursor: pointer; font-weight: 600; }
 
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
-  .card { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 6px; padding: 18px; cursor: pointer; transition: border-color 0.15s ease; }
-  .card:hover { border-color: var(--green); }
-  .card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
-  .card-title { font-size: 15px; font-weight: 600; }
-  .card-sub { font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-bottom: 10px; }
-  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); margin-top: 6px; flex-shrink: 0; }
-  .status-dot.archived { background: var(--text-dim); }
-  .stat-row { display: flex; gap: 16px; font-family: var(--mono); font-size: 12px; margin-top: 10px; flex-wrap: wrap; }
-  .stat-row .n { font-size: 15px; color: var(--text); display: block; }
-  .stat-row .n.money { color: var(--amber); }
-  .stat-row .l { color: var(--text-dim); font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
-  canvas.spark { margin-top: 10px; max-height: 40px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px; }
 
-  .detail-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 8px; }
-  .chart-box { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 6px; padding: 16px; }
-  .chart-box h3 { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); margin: 0 0 10px; }
+  .card {
+    background: var(--card-bg);
+    border-radius: 18px;
+    padding: 0;
+    cursor: pointer;
+    overflow: hidden;
+    box-shadow: 0 8px 24px rgba(42,36,80,0.14);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(42,36,80,0.22); }
+  .accent-bar { height: 5px; width: 100%; }
+  .card-body { padding: 18px 18px 14px; }
+  .card-top { display: flex; justify-content: space-between; align-items: flex-start; }
+  .card-title { font-size: 15px; font-weight: 700; color: var(--text); }
+  .card-sub { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
 
-  .campaign-actions { display: flex; gap: 10px; margin: 4px 0 18px; }
-  .estimate-note { font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin: 10px 0 20px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--panel-border); border-radius: 4px; }
+  .status-icon { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 12px; }
+  .status-icon.up { background: rgba(53,208,127,0.18); color: var(--green); }
+  .status-icon.down { background: rgba(255,92,122,0.18); color: var(--red); }
+  .status-icon.flat { background: rgba(167,159,201,0.18); color: var(--text-dim); }
 
-  .empty { font-family: var(--mono); color: var(--text-dim); font-size: 13px; padding: 40px 0; text-align: center; }
+  .kpi-row { display: flex; gap: 18px; margin-top: 14px; flex-wrap: wrap; }
+  .kpi .n { font-size: 22px; font-weight: 800; color: var(--text); line-height: 1.1; }
+  .kpi .n.money { color: var(--amber); }
+  .kpi .l { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); margin-top: 3px; }
+  .delta { font-size: 11px; font-weight: 700; margin-left: 6px; }
+  .delta.up { color: var(--green); }
+  .delta.down { color: var(--red); }
 
-  .admin { margin-top: 40px; border-top: 1px solid var(--panel-border); padding-top: 20px; }
-  .admin summary { font-family: var(--mono); font-size: 12px; color: var(--text-dim); cursor: pointer; }
+  canvas.spark { margin-top: 12px; max-height: 44px; }
+
+  .detail-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 8px; }
+  .chart-box { background: var(--card-bg); border-radius: 18px; padding: 18px; box-shadow: 0 8px 24px rgba(42,36,80,0.14); }
+  .chart-box h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); margin: 0 0 12px; }
+
+  .campaign-actions { display: flex; gap: 10px; margin: 4px 0 16px; }
+  .campaign-actions button {
+    background: #fff; border: 1px solid #DCD5F0; color: #2A2450; font-family: var(--sans);
+    font-size: 13px; padding: 8px 14px; border-radius: 8px; cursor: pointer; font-weight: 600;
+  }
+  .campaign-actions button.danger { background: #FFE7EC; border-color: #FFB8C6; color: #C2295A; }
+  .campaign-actions button:hover { filter: brightness(0.97); }
+
+  .estimate-note { font-size: 12px; color: #7A7398; margin: 8px 0 20px; padding: 10px 14px; background: #fff; border-radius: 10px; border: 1px solid #DCD5F0; }
+
+  .empty { color: #8B84AE; font-size: 14px; padding: 60px 0; text-align: center; }
+
+  .admin { margin-top: 40px; border-top: 1px solid #D8D1EE; padding-top: 20px; }
+  .admin summary { font-size: 13px; color: #8B84AE; cursor: pointer; font-weight: 600; }
   .admin-form { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 14px; }
-  .admin-form input { grid-column: span 1; }
+  .admin-form input {
+    background: #fff; border: 1px solid #DCD5F0; color: #2A2450; font-family: var(--sans);
+    font-size: 13px; padding: 9px 11px; border-radius: 8px;
+  }
   .admin-form .full { grid-column: 1 / -1; }
-  .admin-msg { font-family: var(--mono); font-size: 12px; margin-top: 8px; }
+  .admin-form button {
+    background: var(--purple); border: none; color: #fff; font-family: var(--sans); font-weight: 700;
+    font-size: 13px; padding: 10px 14px; border-radius: 8px; cursor: pointer;
+  }
+  .admin-msg { font-size: 12px; margin-top: 8px; font-weight: 600; }
   .admin-msg.ok { color: var(--green); }
   .admin-msg.err { color: var(--red); }
 </style>
@@ -73,7 +110,7 @@
 <body>
 
 <header>
-  <h1>Campaign Dashboard <span>/ internal</span></h1>
+  <h1>Campaign Dashboard <span>· internal</span></h1>
   <div class="controls">
     <select id="statusFilter">
       <option value="active">Active only</option>
@@ -88,7 +125,7 @@
 
 <details class="admin">
   <summary>Add / edit campaigns</summary>
-  <p style="font-family:var(--mono); font-size:11px; color:var(--text-dim); max-width:640px;">
+  <p style="font-size:12px; color:#8B84AE; max-width:640px;">
     Paste these once — all kept in this browser's storage only. Same values as the report generator / LTT.
   </p>
   <div class="admin-form">
@@ -100,7 +137,7 @@
 
   <div class="admin-form" style="margin-top:14px;">
     <input id="trackSearch" placeholder="Spotify track, album, or playlist link…" class="full">
-    <button class="primary" onclick="searchTrack()">Search</button>
+    <button onclick="searchTrack()">Search</button>
   </div>
   <div id="searchResults" class="grid" style="margin-top:10px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));"></div>
 
@@ -110,14 +147,20 @@
     <input id="f_track" placeholder="Track title" readonly>
     <input id="f_start" placeholder="Start date (YYYY-MM-DD)">
     <input id="f_isrc" placeholder="ISRC (auto-filled from search)" class="full" readonly>
-    <button class="primary" onclick="addCampaign()">Add campaign</button>
+    <button onclick="addCampaign()">Add campaign</button>
   </div>
   <div id="adminMsg" class="admin-msg"></div>
 </details>
 
 <script>
-const REPO = "mattrimmo/campaigndashboard"; // update if the repo path differs
+const REPO = "mattrimmo/campaigndashboard";
 const DATA_BRANCH = "main";
+const ACCENTS = [
+  'linear-gradient(90deg,#3EE0C8,#9B7BF5)',
+  'linear-gradient(90deg,#9B7BF5,#FF5DA0)',
+  'linear-gradient(90deg,#FFC15E,#FF5DA0)',
+  'linear-gradient(90deg,#3EE0C8,#35D07F)'
+];
 
 let campaigns = [];
 let history = {};
@@ -142,16 +185,36 @@ function filtered() {
   return campaigns.filter(c => (c.status || 'active') === mode);
 }
 
-function latest(cid) {
-  const h = history[cid] || [];
-  return h.length ? h[h.length - 1] : null;
+function latest(cid) { const h = history[cid] || []; return h.length ? h[h.length - 1] : null; }
+function previous(cid) { const h = history[cid] || []; return h.length > 1 ? h[h.length - 2] : null; }
+
+function pctDelta(cur, prev) {
+  if (cur === null || cur === undefined || !prev) return null;
+  if (!prev) return null;
+  return prev === 0 ? null : Math.round(((cur - prev) / prev) * 100);
 }
 
-function sparkline(canvas, seriesKey, cid) {
+function deltaBadge(cur, prevVal) {
+  const d = pctDelta(cur, prevVal);
+  if (d === null) return '';
+  const dir = d > 0 ? 'up' : d < 0 ? 'down' : '';
+  const arrow = d > 0 ? '▲' : d < 0 ? '▼' : '';
+  return `<span class="delta ${dir}">${arrow} ${Math.abs(d)}%</span>`;
+}
+
+function statusIcon(cur, prevVal) {
+  const d = pctDelta(cur, prevVal);
+  if (d === null) return '<div class="status-icon flat">–</div>';
+  if (d > 0) return '<div class="status-icon up">✓</div>';
+  if (d < 0) return '<div class="status-icon down">!</div>';
+  return '<div class="status-icon flat">–</div>';
+}
+
+function sparkline(canvas, seriesKey, cid, color) {
   const h = history[cid] || [];
   new Chart(canvas, {
     type: 'line',
-    data: { labels: h.map(d => d.date), datasets: [{ data: h.map(d => d[seriesKey]), borderColor: '#1ed760', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false }] },
+    data: { labels: h.map(d => d.date), datasets: [{ data: h.map(d => d[seriesKey]), borderColor: color, borderWidth: 2, pointRadius: 0, tension: 0.35, fill: false }] },
     options: { responsive: true, maintainAspectRatio: false, scales: { x: { display: false }, y: { display: false } }, plugins: { legend: { display: false }, tooltip: { enabled: false } } }
   });
 }
@@ -164,43 +227,47 @@ function renderClients() {
 
   const view = document.getElementById('view');
   const clientNames = Object.keys(byClient);
-  if (!clientNames.length) {
-    view.innerHTML = '<div class="empty">No campaigns tracked yet — add one below.</div>';
-    return;
-  }
+  if (!clientNames.length) { view.innerHTML = '<div class="empty">No campaigns tracked yet — add one below.</div>'; return; }
 
   view.innerHTML = '<div class="grid" id="clientGrid"></div>';
   const grid = document.getElementById('clientGrid');
 
-  clientNames.forEach(client => {
+  clientNames.forEach((client, i) => {
     const camps = byClient[client];
     const activeCount = camps.filter(c => (c.status || 'active') === 'active').length;
-    let reach = 0, streams = 0, revenue = 0, playlists = 0;
+    let reach = 0, prevReach = 0, streams = 0, prevStreams = 0, revenue = 0, playlists = 0;
     camps.forEach(c => {
-      const l = latest(c.id);
+      const l = latest(c.id), p = previous(c.id);
       if (l) {
         reach += (l.editorial_reach || 0) + (l.independent_reach || 0);
         streams += l.total_streams || 0;
         revenue += l.estimated_revenue_gbp || 0;
         playlists += (l.editorial_count || 0) + (l.independent_count || 0);
       }
+      if (p) { prevReach += (p.editorial_reach || 0) + (p.independent_reach || 0); prevStreams += p.total_streams || 0; }
     });
 
     const card = document.createElement('div');
     card.className = 'card';
     card.onclick = () => renderClientDetail(client, camps);
     card.innerHTML = `
-      <div class="card-top">
-        <div>
-          <div class="card-title">${client}</div>
-          <div class="card-sub">${camps.length} campaign${camps.length !== 1 ? 's' : ''} · ${activeCount} active</div>
+      <div class="accent-bar" style="background:${ACCENTS[i % ACCENTS.length]}"></div>
+      <div class="card-body">
+        <div class="card-top">
+          <div>
+            <div class="card-title">${client}</div>
+            <div class="card-sub">${camps.length} campaign${camps.length !== 1 ? 's' : ''} · ${activeCount} active</div>
+          </div>
+          ${statusIcon(streams, prevStreams)}
         </div>
-      </div>
-      <div class="stat-row">
-        <div><span class="n">${fmtNum(reach)}</span><span class="l">Playlist reach</span></div>
-        <div><span class="n">${fmtNum(streams)}</span><span class="l">Total streams</span></div>
-        <div><span class="n">${playlists}</span><span class="l">Playlist adds</span></div>
-        <div><span class="n money">${fmtGBP(revenue)}</span><span class="l">Est. revenue</span></div>
+        <div class="kpi-row">
+          <div class="kpi"><span class="n">${fmtNum(reach)}</span>${deltaBadge(reach, prevReach)}<div class="l">Playlist reach</div></div>
+          <div class="kpi"><span class="n">${fmtNum(streams)}</span>${deltaBadge(streams, prevStreams)}<div class="l">Total streams</div></div>
+        </div>
+        <div class="kpi-row">
+          <div class="kpi"><span class="n">${playlists}</span><div class="l">Playlist adds</div></div>
+          <div class="kpi"><span class="n money">${fmtGBP(revenue)}</span><div class="l">Est. revenue</div></div>
+        </div>
       </div>
     `;
     grid.appendChild(card);
@@ -213,33 +280,35 @@ function renderClientDetail(client, camps) {
   view.innerHTML = '<div class="grid" id="campGrid"></div>';
   const grid = document.getElementById('campGrid');
 
-  camps.forEach(c => {
-    const l = latest(c.id) || {};
+  camps.forEach((c, i) => {
+    const l = latest(c.id) || {}, p = previous(c.id) || {};
     const card = document.createElement('div');
     card.className = 'card';
     card.onclick = () => renderCampaignDetail(c);
     card.innerHTML = `
-      <div class="card-top">
-        <div>
-          <div class="card-title">${c.track}</div>
-          <div class="card-sub">${c.artist} · started ${c.start_date || '—'}</div>
+      <div class="accent-bar" style="background:${ACCENTS[i % ACCENTS.length]}"></div>
+      <div class="card-body">
+        <div class="card-top">
+          <div>
+            <div class="card-title">${c.track}</div>
+            <div class="card-sub">${c.artist} · started ${c.start_date || '—'}</div>
+          </div>
+          ${statusIcon(l.total_streams, p.total_streams)}
         </div>
-        <div class="status-dot ${(c.status || 'active') === 'archived' ? 'archived' : ''}"></div>
+        <div class="kpi-row">
+          <div class="kpi"><span class="n">${fmtNum((l.editorial_reach || 0) + (l.independent_reach || 0))}</span><div class="l">Reach</div></div>
+          <div class="kpi"><span class="n">${fmtNum(l.total_streams)}</span>${deltaBadge(l.total_streams, p.total_streams)}<div class="l">Streams</div></div>
+        </div>
+        <div class="kpi-row">
+          <div class="kpi"><span class="n money">${fmtGBP(l.estimated_revenue_gbp)}</span><div class="l">Est. revenue</div></div>
+        </div>
+        <canvas class="spark" id="spark-${c.id}"></canvas>
       </div>
-      <div class="stat-row">
-        <div><span class="n">${fmtNum((l.editorial_reach || 0) + (l.independent_reach || 0))}</span><span class="l">Reach</span></div>
-        <div><span class="n">${fmtNum(l.total_streams)}</span><span class="l">Streams</span></div>
-        <div><span class="n money">${fmtGBP(l.estimated_revenue_gbp)}</span><span class="l">Est. revenue</span></div>
-      </div>
-      <canvas class="spark" id="spark-${c.id}"></canvas>
     `;
     grid.appendChild(card);
   });
 
-  camps.forEach(c => {
-    const canvas = document.getElementById(`spark-${c.id}`);
-    if (canvas) sparkline(canvas, 'total_streams', c.id);
-  });
+  camps.forEach(c => { const canvas = document.getElementById(`spark-${c.id}`); if (canvas) sparkline(canvas, 'total_streams', c.id, '#9B7BF5'); });
 }
 
 function renderCampaignDetail(c) {
@@ -268,21 +337,20 @@ function renderCampaignDetail(c) {
   const h = history[c.id] || [];
   const mk = (canvasId, fn, color) => new Chart(document.getElementById(canvasId), {
     type: 'line',
-    data: { labels: h.map(d => d.date), datasets: [{ data: h.map(fn), borderColor: color, backgroundColor: color + '22', fill: true, tension: 0.3, pointRadius: 2 }] },
+    data: { labels: h.map(d => d.date), datasets: [{ data: h.map(fn), borderColor: color, backgroundColor: color + '22', fill: true, tension: 0.35, pointRadius: 2 }] },
     options: { responsive: true, plugins: { legend: { display: false } },
-      scales: { x: { ticks: { color: '#8ba396', font: { family: 'monospace', size: 10 } }, grid: { color: '#223028' } },
-                y: { ticks: { color: '#8ba396', font: { family: 'monospace', size: 10 } }, grid: { color: '#223028' } } } }
+      scales: { x: { ticks: { color: '#8B84AE', font: { size: 10 } }, grid: { color: '#EEEAF9' } },
+                y: { ticks: { color: '#8B84AE', font: { size: 10 } }, grid: { color: '#EEEAF9' } } } }
   });
 
-  mk('d-streams', d => d.total_streams, '#1ed760');
-  mk('d-daily', d => d.daily_streams, '#1ed760');
-  mk('d-reach', d => (d.editorial_reach || 0) + (d.independent_reach || 0), '#e0a848');
-  mk('d-revenue', d => d.estimated_revenue_gbp, '#e0a848');
+  mk('d-streams', d => d.total_streams, '#3EE0C8');
+  mk('d-daily', d => d.daily_streams, '#3EE0C8');
+  mk('d-reach', d => (d.editorial_reach || 0) + (d.independent_reach || 0), '#9B7BF5');
+  mk('d-revenue', d => d.estimated_revenue_gbp, '#FFC15E');
 }
 
 document.getElementById('statusFilter').addEventListener('change', renderClients);
 
-// --- Admin: add campaigns + archive/reactivate, all via GitHub API, PAT stored locally only ---
 document.getElementById('pat').value = localStorage.getItem('cd_pat') || '';
 document.getElementById('sotKey').value = localStorage.getItem('cd_sot') || '';
 document.getElementById('spId').value = localStorage.getItem('cd_spid') || '';
@@ -317,17 +385,19 @@ function renderResultCards(items) {
   items.forEach(item => {
     const el = document.createElement('div');
     el.className = 'card';
-    el.style.padding = '10px';
     el.innerHTML = `
-      <div style="font-size:13px;font-weight:600;">${item.name}</div>
-      <div style="font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-top:2px;">${item.artist || ''}${item.isrc ? ' · ' + item.isrc : ''}</div>
+      <div class="accent-bar" style="background:${ACCENTS[0]}"></div>
+      <div class="card-body" style="padding:12px 14px;">
+        <div style="font-size:13px;font-weight:700;color:var(--text);">${item.name}</div>
+        <div style="font-size:11px;color:var(--text-dim);margin-top:2px;">${item.artist || ''}${item.isrc ? ' · ' + item.isrc : ''}</div>
+      </div>
     `;
     el.onclick = () => {
       document.getElementById('f_track').value = item.name || '';
       document.getElementById('f_isrc').value = item.isrc || '';
       if (item.artist) document.getElementById('f_artist').value = item.artist;
-      [...results.children].forEach(c => c.style.borderColor = 'var(--panel-border)');
-      el.style.borderColor = 'var(--green)';
+      [...results.children].forEach(c => c.style.outline = 'none');
+      el.style.outline = '3px solid #35D07F';
     };
     results.appendChild(el);
   });
@@ -360,38 +430,30 @@ async function searchTrack() {
   try {
     if (playlistMatch) {
       const playlist = await spGet('/playlists/' + playlistMatch[1] + '?fields=name,tracks.items(track(id,name,external_ids,artists))');
-      const items = playlist.tracks.items
-        .map(i => i.track)
-        .filter(t => t && t.external_ids && t.external_ids.isrc)
+      const items = playlist.tracks.items.map(i => i.track).filter(t => t && t.external_ids && t.external_ids.isrc)
         .map(t => ({ name: t.name, isrc: t.external_ids.isrc, artist: t.artists.map(a => a.name).join(' & ') }));
       if (!items.length) { msg.className = 'admin-msg err'; msg.textContent = 'No tracks with ISRCs found in that playlist.'; return; }
       renderResultCards(items);
     } else if (albumMatch) {
       const album = await spGet('/albums/' + albumMatch[1]);
-      const trackDetails = await Promise.all(
-        album.tracks.items.map(t => spGet('/tracks/' + t.id).catch(() => null))
-      );
-      const items = trackDetails
-        .filter(t => t && t.external_ids && t.external_ids.isrc)
+      const trackDetails = await Promise.all(album.tracks.items.map(t => spGet('/tracks/' + t.id).catch(() => null)));
+      const items = trackDetails.filter(t => t && t.external_ids && t.external_ids.isrc)
         .map(t => ({ name: t.name, isrc: t.external_ids.isrc, artist: t.artists.map(a => a.name).join(' & ') }));
       if (!items.length) { msg.className = 'admin-msg err'; msg.textContent = 'No tracks with ISRCs found in that album.'; return; }
       renderResultCards(items);
     } else {
       const query = trackMatch ? ('https://open.spotify.com/track/' + trackMatch[1]) : raw;
-      const res = await fetch('https://www.spotontrack.com/api/v1/tracks?query=' + encodeURIComponent(query), {
-        headers: { Authorization: 'Bearer ' + sotKey }
-      });
+      const res = await fetch('https://www.spotontrack.com/api/v1/tracks?query=' + encodeURIComponent(query), { headers: { Authorization: 'Bearer ' + sotKey } });
       if (!res.ok) throw new Error('Spot On Track returned ' + res.status);
       const data = await res.json();
       if (!data.length) { msg.className = 'admin-msg err'; msg.textContent = 'No results found.'; return; }
-      // SOT's track objects don't reliably include an artist field — resolve it via Spotify by ISRC
       const items = await Promise.all(data.slice(0, 6).map(async t => {
         let artist = '';
         try {
           const found = await spGet('/search?q=isrc:' + t.isrc + '&type=track&limit=1');
           const sp = found?.tracks?.items?.[0];
           if (sp) artist = sp.artists.map(a => a.name).join(' & ');
-        } catch (e) { /* leave blank, editable */ }
+        } catch (e) {}
         return { name: t.name, isrc: t.isrc, artist };
       }));
       renderResultCards(items);
@@ -407,11 +469,9 @@ async function githubGetCampaigns(pat) {
   const json = await res.json();
   return { list: JSON.parse(atob(json.content)), sha: json.sha };
 }
-
 async function githubPutCampaigns(pat, list, sha, message) {
   const res = await fetch(`https://api.github.com/repos/${REPO}/contents/data/campaigns.json`, {
-    method: 'PUT',
-    headers: { Authorization: `Bearer ${pat}`, 'Content-Type': 'application/json' },
+    method: 'PUT', headers: { Authorization: `Bearer ${pat}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ message, content: btoa(JSON.stringify(list, null, 2) + '\n'), sha, branch: DATA_BRANCH })
   });
   if (!res.ok) throw new Error(`GitHub write failed (${res.status})`);
@@ -461,9 +521,7 @@ async function setStatus(id, status) {
     campaigns = list;
     alert(status === 'archived' ? 'Archived — this campaign will stop being synced.' : 'Reactivated — this campaign will resume syncing.');
     renderClients();
-  } catch (e) {
-    alert(e.message);
-  }
+  } catch (e) { alert(e.message); }
 }
 
 loadData();
