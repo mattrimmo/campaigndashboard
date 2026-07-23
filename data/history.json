@@ -4,11 +4,102 @@
       "date": "2026-07-23",
       "total_streams": 0,
       "daily_streams": 0,
-      "editorial_count": 10,
-      "independent_count": 29,
-      "editorial_reach": 94092,
-      "independent_reach": 438788,
+      "editorial_count": 1,
+      "independent_count": 38,
+      "editorial_reach": 11971,
+      "independent_reach": 520911,
       "estimated_revenue_gbp": 0.0,
+      "estimated_revenue_rate_gbp": 0.003
+    }
+  ],
+  "c1784819834217": [
+    {
+      "date": "2026-07-23",
+      "total_streams": 0,
+      "daily_streams": 0,
+      "editorial_count": 1,
+      "independent_count": 31,
+      "editorial_reach": 2221,
+      "independent_reach": 458735,
+      "estimated_revenue_gbp": 0.0,
+      "estimated_revenue_rate_gbp": 0.003
+    }
+  ],
+  "c1784819909951": [
+    {
+      "date": "2026-07-23",
+      "total_streams": 250423,
+      "daily_streams": 13935,
+      "editorial_count": 11,
+      "independent_count": 108,
+      "editorial_reach": 4393980,
+      "independent_reach": 1428285,
+      "estimated_revenue_gbp": 751.27,
+      "estimated_revenue_rate_gbp": 0.003
+    }
+  ],
+  "c1784819976600": [
+    {
+      "date": "2026-07-23",
+      "total_streams": 343409,
+      "daily_streams": 11486,
+      "editorial_count": 5,
+      "independent_count": 49,
+      "editorial_reach": 2381900,
+      "independent_reach": 1175995,
+      "estimated_revenue_gbp": 1030.23,
+      "estimated_revenue_rate_gbp": 0.003
+    }
+  ],
+  "c1784820044250": [
+    {
+      "date": "2026-07-23",
+      "total_streams": 2253029,
+      "daily_streams": 172162,
+      "editorial_count": 26,
+      "independent_count": 272,
+      "editorial_reach": 20376908,
+      "independent_reach": 3286302,
+      "estimated_revenue_gbp": 6759.09,
+      "estimated_revenue_rate_gbp": 0.003
+    }
+  ],
+  "c1784820133283": [
+    {
+      "date": "2026-07-23",
+      "total_streams": 184807,
+      "daily_streams": 1906,
+      "editorial_count": 0,
+      "independent_count": 28,
+      "editorial_reach": 0,
+      "independent_reach": 501115,
+      "estimated_revenue_gbp": 554.42,
+      "estimated_revenue_rate_gbp": 0.003
+    }
+  ],
+  "c1784820206050": [
+    {
+      "date": "2026-07-23",
+      "total_streams": 2434728,
+      "daily_streams": 102127,
+      "editorial_count": 27,
+      "independent_count": 251,
+      "editorial_reach": 19956762,
+      "independent_reach": 6631574,
+      "estimated_revenue_gbp": 7304.18,
+      "estimated_revenue_rate_gbp": 0.003
+    }
+  ],
+  "c1784820272791": [
+    {
+      "date": "2026-07-23",
+      "total_streams": 10089,
+      "daily_streams": 438,
+      "editorial_count": 1,
+      "independent_count": 37,
+      "editorial_reach": 195727,
+      "independent_reach": 550984,
+      "estimated_revenue_gbp": 30.27,
       "estimated_revenue_rate_gbp": 0.003
     }
   ]
