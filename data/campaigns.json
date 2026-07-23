@@ -25,5 +25,14 @@
     "start_date": "2026-07-10",
     "isrc": "QMBZ92682489",
     "status": "active"
+  },
+  {
+    "id": "c1784819976600",
+    "client": "DEF JAM",
+    "artist": "Vybz Kartel, SHY FX, CLIPZ",
+    "track": "Just Love",
+    "start_date": "2026-07-10",
+    "isrc": "GBUM72603869",
+    "status": "active"
   }
 ]
