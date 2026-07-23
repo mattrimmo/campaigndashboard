@@ -61,5 +61,14 @@
     "start_date": "2026-07-03",
     "isrc": "QT8JC2653525",
     "status": "active"
+  },
+  {
+    "id": "c1784820272791",
+    "client": "Altra Moda",
+    "artist": "Rue Jay DJ Rae",
+    "track": "You Gotta Know",
+    "start_date": "2026-06-26",
+    "isrc": "NLML62600117",
+    "status": "active"
   }
 ]
