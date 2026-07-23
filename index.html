@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Campaign Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0d1210;
+    --panel: #141b18;
+    --panel-border: #223028;
+    --text: #e7f0ea;
+    --text-dim: #8ba396;
+    --green: #1ed760;
+    --green-dim: #14401f;
+    --amber: #e0a848;
+    --red: #e0685a;
+    --mono: "IBM Plex Mono", "SF Mono", Consolas, monospace;
+    --sans: "Inter", -apple-system, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); padding: 32px 40px 80px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 28px; flex-wrap: wrap; gap: 12px; }
+  h1 { font-family: var(--mono); font-size: 20px; font-weight: 600; letter-spacing: 0.02em; margin: 0; color: var(--green); }
+  h1 span { color: var(--text-dim); font-weight: 400; }
+  .controls { display: flex; gap: 10px; align-items: center; }
+  select, button, input[type=password], input[type=text] {
+    background: var(--panel); border: 1px solid var(--panel-border); color: var(--text);
+    font-family: var(--mono); font-size: 12px; padding: 7px 10px; border-radius: 4px;
+  }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--green); }
+  button.primary { background: var(--green-dim); border-color: var(--green); color: var(--green); }
+  button.danger { background: #3a1c18; border-color: var(--red); color: var(--red); }
+
+  .breadcrumb { font-family: var(--mono); font-size: 12px; color: var(--text-dim); margin-bottom: 18px; }
+  .breadcrumb a { color: var(--green); text-decoration: none; cursor: pointer; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 6px; padding: 18px; cursor: pointer; transition: border-color 0.15s ease; }
+  .card:hover { border-color: var(--green); }
+  .card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
+  .card-title { font-size: 15px; font-weight: 600; }
+  .card-sub { font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-bottom: 10px; }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); margin-top: 6px; flex-shrink: 0; }
+  .status-dot.archived { background: var(--text-dim); }
+  .stat-row { display: flex; gap: 16px; font-family: var(--mono); font-size: 12px; margin-top: 10px; flex-wrap: wrap; }
+  .stat-row .n { font-size: 15px; color: var(--text); display: block; }
+  .stat-row .n.money { color: var(--amber); }
+  .stat-row .l { color: var(--text-dim); font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+  canvas.spark { margin-top: 10px; max-height: 40px; }
+
+  .detail-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 8px; }
+  .chart-box { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 6px; padding: 16px; }
+  .chart-box h3 { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); margin: 0 0 10px; }
+
+  .campaign-actions { display: flex; gap: 10px; margin: 4px 0 18px; }
+  .estimate-note { font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin: 10px 0 20px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--panel-border); border-radius: 4px; }
+
+  .empty { font-family: var(--mono); color: var(--text-dim); font-size: 13px; padding: 40px 0; text-align: center; }
+
+  .admin { margin-top: 40px; border-top: 1px solid var(--panel-border); padding-top: 20px; }
+  .admin summary { font-family: var(--mono); font-size: 12px; color: var(--text-dim); cursor: pointer; }
+  .admin-form { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 14px; }
+  .admin-form input { grid-column: span 1; }
+  .admin-form .full { grid-column: 1 / -1; }
+  .admin-msg { font-family: var(--mono); font-size: 12px; margin-top: 8px; }
+  .admin-msg.ok { color: var(--green); }
+  .admin-msg.err { color: var(--red); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Campaign Dashboard <span>/ internal</span></h1>
+  <div class="controls">
+    <select id="statusFilter">
+      <option value="active">Active only</option>
+      <option value="all">All (incl. archived)</option>
+      <option value="archived">Archived only</option>
+    </select>
+  </div>
+</header>
+
+<div class="breadcrumb" id="breadcrumb"><a onclick="renderClients()">Clients</a></div>
+<div id="view"></div>
+
+<details class="admin">
+  <summary>Add / edit campaigns</summary>
+  <p style="font-family:var(--mono); font-size:11px; color:var(--text-dim); max-width:640px;">
+    Paste these once — all kept in this browser's storage only. Same values as the report generator / LTT.
+  </p>
+  <div class="admin-form">
+    <input id="pat" type="password" placeholder="GitHub PAT" class="full">
+    <input id="sotKey" type="password" placeholder="Spot On Track API key" class="full">
+    <input id="spId" type="password" placeholder="Spotify Client ID">
+    <input id="spSecret" type="password" placeholder="Spotify Client Secret">
+  </div>
+
+  <div class="admin-form" style="margin-top:14px;">
+    <input id="trackSearch" placeholder="Spotify track, album, or playlist link…" class="full">
+    <button class="primary" onclick="searchTrack()">Search</button>
+  </div>
+  <div id="searchResults" class="grid" style="margin-top:10px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));"></div>
+
+  <div class="admin-form" style="margin-top:14px;">
+    <input id="f_client" placeholder="Client name">
+    <input id="f_artist" placeholder="Artist name (fill in if not auto-filled)">
+    <input id="f_track" placeholder="Track title" readonly>
+    <input id="f_start" placeholder="Start date (YYYY-MM-DD)">
+    <input id="f_isrc" placeholder="ISRC (auto-filled from search)" class="full" readonly>
+    <button class="primary" onclick="addCampaign()">Add campaign</button>
+  </div>
+  <div id="adminMsg" class="admin-msg"></div>
+</details>
+
+<script>
+const REPO = "mattrimmo/campaigndashboard"; // update if the repo path differs
+const DATA_BRANCH = "main";
+
+let campaigns = [];
+let history = {};
+
+const fmtGBP = n => (n === null || n === undefined) ? '—' :
+  new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', maximumFractionDigits: 0 }).format(n);
+const fmtNum = n => (n === null || n === undefined) ? '—' : n.toLocaleString('en-GB');
+
+async function loadData() {
+  const [cRes, hRes] = await Promise.all([
+    fetch('data/campaigns.json?_=' + Date.now()),
+    fetch('data/history.json?_=' + Date.now())
+  ]);
+  campaigns = await cRes.json();
+  history = await hRes.json();
+  renderClients();
+}
+
+function filtered() {
+  const mode = document.getElementById('statusFilter').value;
+  if (mode === 'all') return campaigns;
+  return campaigns.filter(c => (c.status || 'active') === mode);
+}
+
+function latest(cid) {
+  const h = history[cid] || [];
+  return h.length ? h[h.length - 1] : null;
+}
+
+function sparkline(canvas, seriesKey, cid) {
+  const h = history[cid] || [];
+  new Chart(canvas, {
+    type: 'line',
+    data: { labels: h.map(d => d.date), datasets: [{ data: h.map(d => d[seriesKey]), borderColor: '#1ed760', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false }] },
+    options: { responsive: true, maintainAspectRatio: false, scales: { x: { display: false }, y: { display: false } }, plugins: { legend: { display: false }, tooltip: { enabled: false } } }
+  });
+}
+
+function renderClients() {
+  document.getElementById('breadcrumb').innerHTML = '<a onclick="renderClients()">Clients</a>';
+  const list = filtered();
+  const byClient = {};
+  list.forEach(c => { byClient[c.client] = byClient[c.client] || []; byClient[c.client].push(c); });
+
+  const view = document.getElementById('view');
+  const clientNames = Object.keys(byClient);
+  if (!clientNames.length) {
+    view.innerHTML = '<div class="empty">No campaigns tracked yet — add one below.</div>';
+    return;
+  }
+
+  view.innerHTML = '<div class="grid" id="clientGrid"></div>';
+  const grid = document.getElementById('clientGrid');
+
+  clientNames.forEach(client => {
+    const camps = byClient[client];
+    const activeCount = camps.filter(c => (c.status || 'active') === 'active').length;
+    let reach = 0, streams = 0, revenue = 0, playlists = 0;
+    camps.forEach(c => {
+      const l = latest(c.id);
+      if (l) {
+        reach += (l.editorial_reach || 0) + (l.independent_reach || 0);
+        streams += l.total_streams || 0;
+        revenue += l.estimated_revenue_gbp || 0;
+        playlists += (l.editorial_count || 0) + (l.independent_count || 0);
+      }
+    });
+
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.onclick = () => renderClientDetail(client, camps);
+    card.innerHTML = `
+      <div class="card-top">
+        <div>
+          <div class="card-title">${client}</div>
+          <div class="card-sub">${camps.length} campaign${camps.length !== 1 ? 's' : ''} · ${activeCount} active</div>
+        </div>
+      </div>
+      <div class="stat-row">
+        <div><span class="n">${fmtNum(reach)}</span><span class="l">Playlist reach</span></div>
+        <div><span class="n">${fmtNum(streams)}</span><span class="l">Total streams</span></div>
+        <div><span class="n">${playlists}</span><span class="l">Playlist adds</span></div>
+        <div><span class="n money">${fmtGBP(revenue)}</span><span class="l">Est. revenue</span></div>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+function renderClientDetail(client, camps) {
+  document.getElementById('breadcrumb').innerHTML = `<a onclick="renderClients()">Clients</a> / ${client}`;
+  const view = document.getElementById('view');
+  view.innerHTML = '<div class="grid" id="campGrid"></div>';
+  const grid = document.getElementById('campGrid');
+
+  camps.forEach(c => {
+    const l = latest(c.id) || {};
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.onclick = () => renderCampaignDetail(c);
+    card.innerHTML = `
+      <div class="card-top">
+        <div>
+          <div class="card-title">${c.track}</div>
+          <div class="card-sub">${c.artist} · started ${c.start_date || '—'}</div>
+        </div>
+        <div class="status-dot ${(c.status || 'active') === 'archived' ? 'archived' : ''}"></div>
+      </div>
+      <div class="stat-row">
+        <div><span class="n">${fmtNum((l.editorial_reach || 0) + (l.independent_reach || 0))}</span><span class="l">Reach</span></div>
+        <div><span class="n">${fmtNum(l.total_streams)}</span><span class="l">Streams</span></div>
+        <div><span class="n money">${fmtGBP(l.estimated_revenue_gbp)}</span><span class="l">Est. revenue</span></div>
+      </div>
+      <canvas class="spark" id="spark-${c.id}"></canvas>
+    `;
+    grid.appendChild(card);
+  });
+
+  camps.forEach(c => {
+    const canvas = document.getElementById(`spark-${c.id}`);
+    if (canvas) sparkline(canvas, 'total_streams', c.id);
+  });
+}
+
+function renderCampaignDetail(c) {
+  document.getElementById('breadcrumb').innerHTML =
+    `<a onclick="renderClients()">Clients</a> / <a onclick="renderClientDetail('${c.client}', campaigns.filter(x => x.client === '${c.client}'))">${c.client}</a> / ${c.track}`;
+
+  const view = document.getElementById('view');
+  const isArchived = (c.status || 'active') === 'archived';
+  const l = latest(c.id) || {};
+
+  view.innerHTML = `
+    <div class="campaign-actions">
+      ${isArchived
+        ? `<button onclick="setStatus('${c.id}','active')">Reactivate tracking</button>`
+        : `<button class="danger" onclick="setStatus('${c.id}','archived')">Archive / stop tracking</button>`}
+    </div>
+    <div class="estimate-note">Est. revenue uses a blended rate of £${(l.estimated_revenue_rate_gbp || 0.003).toFixed(3)}/stream — a directional estimate only, not an actual royalty figure. Real payouts vary by listener geography, subscription tier and distributor deal.</div>
+    <div class="detail-charts">
+      <div class="chart-box"><h3>Total streams</h3><canvas id="d-streams"></canvas></div>
+      <div class="chart-box"><h3>Daily streams</h3><canvas id="d-daily"></canvas></div>
+      <div class="chart-box"><h3>Playlist reach (editorial + independent)</h3><canvas id="d-reach"></canvas></div>
+      <div class="chart-box"><h3>Estimated revenue (GBP)</h3><canvas id="d-revenue"></canvas></div>
+    </div>
+  `;
+
+  const h = history[c.id] || [];
+  const mk = (canvasId, fn, color) => new Chart(document.getElementById(canvasId), {
+    type: 'line',
+    data: { labels: h.map(d => d.date), datasets: [{ data: h.map(fn), borderColor: color, backgroundColor: color + '22', fill: true, tension: 0.3, pointRadius: 2 }] },
+    options: { responsive: true, plugins: { legend: { display: false } },
+      scales: { x: { ticks: { color: '#8ba396', font: { family: 'monospace', size: 10 } }, grid: { color: '#223028' } },
+                y: { ticks: { color: '#8ba396', font: { family: 'monospace', size: 10 } }, grid: { color: '#223028' } } } }
+  });
+
+  mk('d-streams', d => d.total_streams, '#1ed760');
+  mk('d-daily', d => d.daily_streams, '#1ed760');
+  mk('d-reach', d => (d.editorial_reach || 0) + (d.independent_reach || 0), '#e0a848');
+  mk('d-revenue', d => d.estimated_revenue_gbp, '#e0a848');
+}
+
+document.getElementById('statusFilter').addEventListener('change', renderClients);
+
+// --- Admin: add campaigns + archive/reactivate, all via GitHub API, PAT stored locally only ---
+document.getElementById('pat').value = localStorage.getItem('cd_pat') || '';
+document.getElementById('sotKey').value = localStorage.getItem('cd_sot') || '';
+document.getElementById('spId').value = localStorage.getItem('cd_spid') || '';
+document.getElementById('spSecret').value = localStorage.getItem('cd_spsec') || '';
+
+let _spToken = null, _spExp = 0;
+async function spToken() {
+  if (_spToken && Date.now() < _spExp) return _spToken;
+  const spId = document.getElementById('spId').value.trim();
+  const spSecret = document.getElementById('spSecret').value.trim();
+  const res = await fetch('https://accounts.spotify.com/api/token', {
+    method: 'POST',
+    headers: { Authorization: 'Basic ' + btoa(spId + ':' + spSecret), 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'grant_type=client_credentials'
+  });
+  if (!res.ok) throw new Error('Spotify auth failed (' + res.status + ')');
+  const data = await res.json();
+  _spToken = data.access_token;
+  _spExp = Date.now() + (data.expires_in - 30) * 1000;
+  return _spToken;
+}
+async function spGet(path) {
+  const tok = await spToken();
+  const res = await fetch('https://api.spotify.com/v1' + path, { headers: { Authorization: 'Bearer ' + tok } });
+  if (!res.ok) throw new Error('Spotify returned ' + res.status);
+  return res.json();
+}
+
+function renderResultCards(items) {
+  const results = document.getElementById('searchResults');
+  results.innerHTML = '';
+  items.forEach(item => {
+    const el = document.createElement('div');
+    el.className = 'card';
+    el.style.padding = '10px';
+    el.innerHTML = `
+      <div style="font-size:13px;font-weight:600;">${item.name}</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-top:2px;">${item.artist || ''}${item.isrc ? ' · ' + item.isrc : ''}</div>
+    `;
+    el.onclick = () => {
+      document.getElementById('f_track').value = item.name || '';
+      document.getElementById('f_isrc').value = item.isrc || '';
+      if (item.artist) document.getElementById('f_artist').value = item.artist;
+      [...results.children].forEach(c => c.style.borderColor = 'var(--panel-border)');
+      el.style.borderColor = 'var(--green)';
+    };
+    results.appendChild(el);
+  });
+}
+
+async function searchTrack() {
+  const msg = document.getElementById('adminMsg');
+  msg.className = 'admin-msg'; msg.textContent = '';
+  document.getElementById('searchResults').innerHTML = '';
+
+  const sotKey = document.getElementById('sotKey').value.trim();
+  const spId = document.getElementById('spId').value.trim();
+  const spSecret = document.getElementById('spSecret').value.trim();
+  if (!sotKey || !spId || !spSecret) {
+    msg.className = 'admin-msg err';
+    msg.textContent = 'Paste your Spot On Track key and Spotify Client ID/Secret first.';
+    return;
+  }
+  localStorage.setItem('cd_sot', sotKey);
+  localStorage.setItem('cd_spid', spId);
+  localStorage.setItem('cd_spsec', spSecret);
+
+  const raw = document.getElementById('trackSearch').value.trim();
+  if (!raw) return;
+
+  const playlistMatch = raw.match(/open\.spotify\.com\/playlist\/([A-Za-z0-9]+)/);
+  const albumMatch = raw.match(/open\.spotify\.com\/album\/([A-Za-z0-9]+)/);
+  const trackMatch = raw.match(/open\.spotify\.com\/track\/([A-Za-z0-9]+)/);
+
+  try {
+    if (playlistMatch) {
+      const playlist = await spGet('/playlists/' + playlistMatch[1] + '?fields=name,tracks.items(track(id,name,external_ids,artists))');
+      const items = playlist.tracks.items
+        .map(i => i.track)
+        .filter(t => t && t.external_ids && t.external_ids.isrc)
+        .map(t => ({ name: t.name, isrc: t.external_ids.isrc, artist: t.artists.map(a => a.name).join(' & ') }));
+      if (!items.length) { msg.className = 'admin-msg err'; msg.textContent = 'No tracks with ISRCs found in that playlist.'; return; }
+      renderResultCards(items);
+    } else if (albumMatch) {
+      const album = await spGet('/albums/' + albumMatch[1]);
+      const trackDetails = await Promise.all(
+        album.tracks.items.map(t => spGet('/tracks/' + t.id).catch(() => null))
+      );
+      const items = trackDetails
+        .filter(t => t && t.external_ids && t.external_ids.isrc)
+        .map(t => ({ name: t.name, isrc: t.external_ids.isrc, artist: t.artists.map(a => a.name).join(' & ') }));
+      if (!items.length) { msg.className = 'admin-msg err'; msg.textContent = 'No tracks with ISRCs found in that album.'; return; }
+      renderResultCards(items);
+    } else {
+      const query = trackMatch ? ('https://open.spotify.com/track/' + trackMatch[1]) : raw;
+      const res = await fetch('https://www.spotontrack.com/api/v1/tracks?query=' + encodeURIComponent(query), {
+        headers: { Authorization: 'Bearer ' + sotKey }
+      });
+      if (!res.ok) throw new Error('Spot On Track returned ' + res.status);
+      const data = await res.json();
+      if (!data.length) { msg.className = 'admin-msg err'; msg.textContent = 'No results found.'; return; }
+      // SOT's track objects don't reliably include an artist field — resolve it via Spotify by ISRC
+      const items = await Promise.all(data.slice(0, 6).map(async t => {
+        let artist = '';
+        try {
+          const found = await spGet('/search?q=isrc:' + t.isrc + '&type=track&limit=1');
+          const sp = found?.tracks?.items?.[0];
+          if (sp) artist = sp.artists.map(a => a.name).join(' & ');
+        } catch (e) { /* leave blank, editable */ }
+        return { name: t.name, isrc: t.isrc, artist };
+      }));
+      renderResultCards(items);
+    }
+  } catch (e) {
+    msg.className = 'admin-msg err'; msg.textContent = e.message;
+  }
+}
+
+async function githubGetCampaigns(pat) {
+  const res = await fetch(`https://api.github.com/repos/${REPO}/contents/data/campaigns.json?ref=${DATA_BRANCH}`, { headers: { Authorization: `Bearer ${pat}` } });
+  if (!res.ok) throw new Error(`GitHub read failed (${res.status})`);
+  const json = await res.json();
+  return { list: JSON.parse(atob(json.content)), sha: json.sha };
+}
+
+async function githubPutCampaigns(pat, list, sha, message) {
+  const res = await fetch(`https://api.github.com/repos/${REPO}/contents/data/campaigns.json`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${pat}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, content: btoa(JSON.stringify(list, null, 2) + '\n'), sha, branch: DATA_BRANCH })
+  });
+  if (!res.ok) throw new Error(`GitHub write failed (${res.status})`);
+}
+
+async function addCampaign() {
+  const msg = document.getElementById('adminMsg');
+  msg.className = 'admin-msg'; msg.textContent = '';
+  const pat = document.getElementById('pat').value.trim();
+  if (!pat) { msg.className = 'admin-msg err'; msg.textContent = 'Paste your PAT first.'; return; }
+  localStorage.setItem('cd_pat', pat);
+
+  const newCampaign = {
+    id: 'c' + Date.now(),
+    client: document.getElementById('f_client').value.trim(),
+    artist: document.getElementById('f_artist').value.trim(),
+    track: document.getElementById('f_track').value.trim(),
+    start_date: document.getElementById('f_start').value.trim(),
+    isrc: document.getElementById('f_isrc').value.trim(),
+    status: 'active'
+  };
+  if (!newCampaign.client || !newCampaign.track || !newCampaign.isrc) {
+    msg.className = 'admin-msg err'; msg.textContent = 'Client, track and ISRC are required.'; return;
+  }
+
+  try {
+    const { list, sha } = await githubGetCampaigns(pat);
+    list.push(newCampaign);
+    await githubPutCampaigns(pat, list, sha, `Add campaign: ${newCampaign.client} — ${newCampaign.track}`);
+    msg.className = 'admin-msg ok';
+    msg.textContent = "Added. It'll appear here once the next sync runs.";
+    ['f_client','f_artist','f_track','f_start','f_isrc'].forEach(id => document.getElementById(id).value = '');
+  } catch (e) {
+    msg.className = 'admin-msg err'; msg.textContent = e.message;
+  }
+}
+
+async function setStatus(id, status) {
+  const pat = localStorage.getItem('cd_pat');
+  if (!pat) { alert('Paste your GitHub PAT in the "Add / edit campaigns" panel first.'); return; }
+  try {
+    const { list, sha } = await githubGetCampaigns(pat);
+    const entry = list.find(c => c.id === id);
+    if (!entry) throw new Error('Campaign not found');
+    entry.status = status;
+    await githubPutCampaigns(pat, list, sha, `${status === 'archived' ? 'Archive' : 'Reactivate'}: ${entry.client} — ${entry.track}`);
+    campaigns = list;
+    alert(status === 'archived' ? 'Archived — this campaign will stop being synced.' : 'Reactivated — this campaign will resume syncing.');
+    renderClients();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+loadData();
+</script>
+</body>
+</html>
