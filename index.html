@@ -136,22 +136,25 @@
   </div>
 
   <div class="admin-form" style="margin-top:14px;">
-    <input id="trackSearch" placeholder="Spotify track, album, or playlist link…" class="full">
-    <button onclick="searchTrack()">Search</button>
-  </div>
-  <div id="searchResults" class="grid" style="margin-top:10px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));"></div>
-
-  <div class="admin-form" style="margin-top:14px;">
     <select id="f_client_select" onchange="onClientSelectChange()">
       <option value="">Select client…</option>
       <option value="__new__">+ Add new client</option>
     </select>
     <input id="f_client_new" placeholder="New client name" style="display:none;">
-    <input id="f_artist" placeholder="Artist name (fill in if not auto-filled)">
-    <input id="f_track" placeholder="Track title" readonly>
     <input id="f_start" type="date">
-    <input id="f_isrc" placeholder="ISRC (auto-filled from search)" class="full" readonly>
-    <button onclick="addCampaign()">Add campaign</button>
+  </div>
+
+  <div class="admin-form" style="margin-top:14px;">
+    <input id="trackSearch" placeholder="Spotify track, album, or playlist link…" class="full">
+    <button onclick="searchTrack()">Search</button>
+  </div>
+  <div style="font-size:11px; color:#8B84AE; margin-top:6px;">Set the client + date above, search, then click each result you want — they'll queue up below rather than saving one at a time.</div>
+  <div id="searchResults" class="grid" style="margin-top:10px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));"></div>
+
+  <div id="pendingWrap" style="display:none; margin-top:18px;">
+    <div style="font-size:12px; font-weight:700; color:#8B84AE; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:8px;">Pending campaigns (<span id="pendingCount">0</span>)</div>
+    <div id="pendingList" style="display:flex; flex-direction:column; gap:8px;"></div>
+    <button id="saveBtn" onclick="savePending()" style="margin-top:12px;">Save all pending campaigns</button>
   </div>
   <div id="adminMsg" class="admin-msg"></div>
 </details>
@@ -407,6 +410,8 @@ async function spGet(path) {
   return res.json();
 }
 
+let pendingQueue = [];
+
 function renderResultCards(items) {
   const results = document.getElementById('searchResults');
   results.innerHTML = '';
@@ -418,18 +423,46 @@ function renderResultCards(items) {
       <div class="card-body" style="padding:12px 14px;">
         <div style="font-size:13px;font-weight:700;color:var(--text);">${item.name}</div>
         <div style="font-size:11px;color:var(--text-dim);margin-top:2px;">${item.artist || ''}${item.isrc ? ' · ' + item.isrc : ''}</div>
+        <div style="font-size:11px;color:var(--cyan);margin-top:6px;font-weight:700;">+ Click to queue</div>
       </div>
     `;
     el.onclick = () => {
-      document.getElementById('f_track').value = item.name || '';
-      document.getElementById('f_isrc').value = item.isrc || '';
-      if (item.artist) document.getElementById('f_artist').value = item.artist;
-      [...results.children].forEach(c => c.style.outline = 'none');
-      el.style.outline = '3px solid #35D07F';
+      const client = getSelectedClient();
+      if (!client) { document.getElementById('adminMsg').className = 'admin-msg err'; document.getElementById('adminMsg').textContent = 'Pick or add a client above first.'; return; }
+      pendingQueue.push({
+        id: 'c' + Date.now() + Math.floor(Math.random() * 1000),
+        client,
+        artist: item.artist || '',
+        track: item.name || '',
+        isrc: item.isrc || '',
+        start_date: document.getElementById('f_start').value || '',
+        status: 'active'
+      });
+      renderPending();
+      document.getElementById('adminMsg').className = ''; document.getElementById('adminMsg').textContent = '';
     };
     results.appendChild(el);
   });
 }
+
+function renderPending() {
+  const wrap = document.getElementById('pendingWrap');
+  const list = document.getElementById('pendingList');
+  document.getElementById('pendingCount').textContent = pendingQueue.length;
+  wrap.style.display = pendingQueue.length ? '' : 'none';
+  list.innerHTML = '';
+  pendingQueue.forEach((p, i) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex; align-items:center; gap:10px; background:#fff; border:1px solid #DCD5F0; border-radius:8px; padding:8px 12px;';
+    row.innerHTML = `
+      <div style="flex:1; font-size:13px;"><strong>${p.track}</strong> <span style="color:#8B84AE;">— ${p.artist || 'artist?'} · ${p.client} · ${p.start_date || 'no date'}</span></div>
+      <button style="background:#FFE7EC; border:1px solid #FFB8C6; color:#C2295A; border-radius:6px; padding:4px 10px; font-size:12px; cursor:pointer;" onclick="removePending(${i})">Remove</button>
+    `;
+    list.appendChild(row);
+  });
+}
+
+function removePending(i) { pendingQueue.splice(i, 1); renderPending(); }
 
 async function searchTrack() {
   const msg = document.getElementById('adminMsg');
@@ -507,54 +540,48 @@ async function githubPutCampaigns(pat, list, sha, message) {
   return true;
 }
 
-// Applies `mutate(list) -> list` against the current campaigns.json, retrying
-// automatically if another write (the admin panel, another team member, or a
-// sync run) landed in between the read and the write — same fix as the git
-// pull --rebase added to the sync workflow for the same underlying race.
+let _mutating = false;
 async function githubMutateCampaigns(pat, message, mutate) {
-  for (let attempt = 0; attempt < 4; attempt++) {
-    const { list, sha } = await githubGetCampaigns(pat);
-    const mutated = mutate(list);
-    const ok = await githubPutCampaigns(pat, mutated, sha, message);
-    if (ok) return mutated;
-    await new Promise(r => setTimeout(r, 400 * (attempt + 1))); // brief backoff before retrying
+  while (_mutating) await new Promise(r => setTimeout(r, 150)); // wait for any other write in flight
+  _mutating = true;
+  try {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const { list, sha } = await githubGetCampaigns(pat);
+      const mutated = mutate(list);
+      const ok = await githubPutCampaigns(pat, mutated, sha, message);
+      if (ok) return mutated;
+      await new Promise(r => setTimeout(r, 400 * (attempt + 1)));
+    }
+    throw new Error('GitHub write kept conflicting — try again in a moment.');
+  } finally {
+    _mutating = false;
   }
-  throw new Error('GitHub write kept conflicting — try again in a moment.');
 }
 
-async function addCampaign() {
+async function savePending() {
   const msg = document.getElementById('adminMsg');
+  const btn = document.getElementById('saveBtn');
   msg.className = 'admin-msg'; msg.textContent = '';
+
   const pat = document.getElementById('pat').value.trim();
   if (!pat) { msg.className = 'admin-msg err'; msg.textContent = 'Paste your PAT first.'; return; }
   localStorage.setItem('cd_pat', pat);
+  if (!pendingQueue.length) return;
 
-  const client = getSelectedClient();
-  const newCampaign = {
-    id: 'c' + Date.now(),
-    client,
-    artist: document.getElementById('f_artist').value.trim(),
-    track: document.getElementById('f_track').value.trim(),
-    start_date: document.getElementById('f_start').value.trim(),
-    isrc: document.getElementById('f_isrc').value.trim(),
-    status: 'active'
-  };
-  if (!newCampaign.client || !newCampaign.track || !newCampaign.isrc) {
-    msg.className = 'admin-msg err'; msg.textContent = 'Client, track and ISRC are required.'; return;
-  }
-
+  btn.disabled = true; btn.textContent = 'Saving…';
   try {
-    const updated = await githubMutateCampaigns(pat, `Add campaign: ${newCampaign.client} — ${newCampaign.track}`, list => [...list, newCampaign]);
+    const toAdd = pendingQueue;
+    const updated = await githubMutateCampaigns(pat, `Add ${toAdd.length} campaign${toAdd.length > 1 ? 's' : ''}`, list => [...list, ...toAdd]);
     campaigns = updated;
     populateClientDropdown();
+    pendingQueue = [];
+    renderPending();
     msg.className = 'admin-msg ok';
-    msg.textContent = "Added. It'll appear here once the next sync runs.";
-    ['f_artist','f_track','f_start','f_isrc'].forEach(id => document.getElementById(id).value = '');
-    document.getElementById('f_client_new').value = '';
-    document.getElementById('f_client_new').style.display = 'none';
-    document.getElementById('f_client_select').value = client; // keep same client selected for adding more of theirs
+    msg.textContent = `Saved ${toAdd.length} campaign${toAdd.length > 1 ? 's' : ''} in one write. They'll appear once the next sync runs.`;
   } catch (e) {
     msg.className = 'admin-msg err'; msg.textContent = e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save all pending campaigns';
   }
 }
 
