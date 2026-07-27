@@ -70,5 +70,14 @@
     "start_date": "2026-06-26",
     "isrc": "NLML62600117",
     "status": "active"
+  },
+  {
+    "id": "c1785143648271",
+    "client": "MACEO PLEX",
+    "artist": "Maceo Plex & Baby Monsta",
+    "track": "The Plan (feat. Baby Monsta)",
+    "start_date": "2026-07-24",
+    "isrc": "QMBZ92636012",
+    "status": "active"
   }
 ]
