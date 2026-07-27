@@ -93,7 +93,7 @@
   .admin { margin-top: 40px; border-top: 1px solid #D8D1EE; padding-top: 20px; }
   .admin summary { font-size: 13px; color: #8B84AE; cursor: pointer; font-weight: 600; }
   .admin-form { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 14px; }
-  .admin-form input {
+  .admin-form input, .admin-form select {
     background: #fff; border: 1px solid #DCD5F0; color: #2A2450; font-family: var(--sans);
     font-size: 13px; padding: 9px 11px; border-radius: 8px;
   }
@@ -142,10 +142,14 @@
   <div id="searchResults" class="grid" style="margin-top:10px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));"></div>
 
   <div class="admin-form" style="margin-top:14px;">
-    <input id="f_client" placeholder="Client name">
+    <select id="f_client_select" onchange="onClientSelectChange()">
+      <option value="">Select client…</option>
+      <option value="__new__">+ Add new client</option>
+    </select>
+    <input id="f_client_new" placeholder="New client name" style="display:none;">
     <input id="f_artist" placeholder="Artist name (fill in if not auto-filled)">
     <input id="f_track" placeholder="Track title" readonly>
-    <input id="f_start" placeholder="Start date (YYYY-MM-DD)">
+    <input id="f_start" type="date">
     <input id="f_isrc" placeholder="ISRC (auto-filled from search)" class="full" readonly>
     <button onclick="addCampaign()">Add campaign</button>
   </div>
@@ -176,7 +180,31 @@ async function loadData() {
   ]);
   campaigns = await cRes.json();
   history = await hRes.json();
+  populateClientDropdown();
   renderClients();
+}
+
+function populateClientDropdown() {
+  const sel = document.getElementById('f_client_select');
+  const current = sel.value;
+  const clients = [...new Set(campaigns.map(c => c.client))].sort();
+  sel.innerHTML = '<option value="">Select client…</option>' +
+    clients.map(c => `<option value="${c}">${c}</option>`).join('') +
+    '<option value="__new__">+ Add new client</option>';
+  if (clients.includes(current)) sel.value = current;
+}
+
+function onClientSelectChange() {
+  const sel = document.getElementById('f_client_select');
+  const newInput = document.getElementById('f_client_new');
+  newInput.style.display = sel.value === '__new__' ? '' : 'none';
+  if (sel.value === '__new__') newInput.focus();
+}
+
+function getSelectedClient() {
+  const sel = document.getElementById('f_client_select');
+  if (sel.value === '__new__') return document.getElementById('f_client_new').value.trim();
+  return sel.value;
 }
 
 function filtered() {
@@ -325,7 +353,7 @@ function renderCampaignDetail(c) {
         ? `<button onclick="setStatus('${c.id}','active')">Reactivate tracking</button>`
         : `<button class="danger" onclick="setStatus('${c.id}','archived')">Archive / stop tracking</button>`}
     </div>
-    <div class="estimate-note">Est. revenue uses a blended rate of £${(l.estimated_revenue_rate_gbp || 0.003).toFixed(3)}/stream — a directional estimate only, not an actual royalty figure. Real payouts vary by listener geography, subscription tier and distributor deal.</div>
+    <div class="estimate-note">Est. revenue uses a blended rate of £${(l.estimated_revenue_rate_gbp || 0.003).toFixed(3)}/stream — a directional estimate only, not an actual royalty figure. Real payouts vary by listener geography, subscription tier and distributor deal. Spotify also pays nothing at all until a track clears 1,000 streams in a rolling 12-month window, so a very new campaign may show a small estimate here that isn't real money yet.</div>
     <div class="detail-charts">
       <div class="chart-box"><h3>Total streams</h3><canvas id="d-streams"></canvas></div>
       <div class="chart-box"><h3>Daily streams</h3><canvas id="d-daily"></canvas></div>
@@ -474,7 +502,24 @@ async function githubPutCampaigns(pat, list, sha, message) {
     method: 'PUT', headers: { Authorization: `Bearer ${pat}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ message, content: btoa(JSON.stringify(list, null, 2) + '\n'), sha, branch: DATA_BRANCH })
   });
+  if (res.status === 409) return null; // stale sha — caller should retry
   if (!res.ok) throw new Error(`GitHub write failed (${res.status})`);
+  return true;
+}
+
+// Applies `mutate(list) -> list` against the current campaigns.json, retrying
+// automatically if another write (the admin panel, another team member, or a
+// sync run) landed in between the read and the write — same fix as the git
+// pull --rebase added to the sync workflow for the same underlying race.
+async function githubMutateCampaigns(pat, message, mutate) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const { list, sha } = await githubGetCampaigns(pat);
+    const mutated = mutate(list);
+    const ok = await githubPutCampaigns(pat, mutated, sha, message);
+    if (ok) return mutated;
+    await new Promise(r => setTimeout(r, 400 * (attempt + 1))); // brief backoff before retrying
+  }
+  throw new Error('GitHub write kept conflicting — try again in a moment.');
 }
 
 async function addCampaign() {
@@ -484,9 +529,10 @@ async function addCampaign() {
   if (!pat) { msg.className = 'admin-msg err'; msg.textContent = 'Paste your PAT first.'; return; }
   localStorage.setItem('cd_pat', pat);
 
+  const client = getSelectedClient();
   const newCampaign = {
     id: 'c' + Date.now(),
-    client: document.getElementById('f_client').value.trim(),
+    client,
     artist: document.getElementById('f_artist').value.trim(),
     track: document.getElementById('f_track').value.trim(),
     start_date: document.getElementById('f_start').value.trim(),
@@ -498,12 +544,15 @@ async function addCampaign() {
   }
 
   try {
-    const { list, sha } = await githubGetCampaigns(pat);
-    list.push(newCampaign);
-    await githubPutCampaigns(pat, list, sha, `Add campaign: ${newCampaign.client} — ${newCampaign.track}`);
+    const updated = await githubMutateCampaigns(pat, `Add campaign: ${newCampaign.client} — ${newCampaign.track}`, list => [...list, newCampaign]);
+    campaigns = updated;
+    populateClientDropdown();
     msg.className = 'admin-msg ok';
     msg.textContent = "Added. It'll appear here once the next sync runs.";
-    ['f_client','f_artist','f_track','f_start','f_isrc'].forEach(id => document.getElementById(id).value = '');
+    ['f_artist','f_track','f_start','f_isrc'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('f_client_new').value = '';
+    document.getElementById('f_client_new').style.display = 'none';
+    document.getElementById('f_client_select').value = client; // keep same client selected for adding more of theirs
   } catch (e) {
     msg.className = 'admin-msg err'; msg.textContent = e.message;
   }
@@ -513,12 +562,13 @@ async function setStatus(id, status) {
   const pat = localStorage.getItem('cd_pat');
   if (!pat) { alert('Paste your GitHub PAT in the "Add / edit campaigns" panel first.'); return; }
   try {
-    const { list, sha } = await githubGetCampaigns(pat);
-    const entry = list.find(c => c.id === id);
-    if (!entry) throw new Error('Campaign not found');
-    entry.status = status;
-    await githubPutCampaigns(pat, list, sha, `${status === 'archived' ? 'Archive' : 'Reactivate'}: ${entry.client} — ${entry.track}`);
-    campaigns = list;
+    const updated = await githubMutateCampaigns(pat, `${status === 'archived' ? 'Archive' : 'Reactivate'}: ${id}`, list => {
+      const entry = list.find(c => c.id === id);
+      if (!entry) throw new Error('Campaign not found');
+      entry.status = status;
+      return list;
+    });
+    campaigns = updated;
     alert(status === 'archived' ? 'Archived — this campaign will stop being synced.' : 'Reactivated — this campaign will resume syncing.');
     renderClients();
   } catch (e) { alert(e.message); }
