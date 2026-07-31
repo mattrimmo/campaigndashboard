@@ -106,5 +106,50 @@
     "start_date": "2026-07-24",
     "isrc": "ZZA0Z2603338",
     "status": "active"
+  },
+  {
+    "id": "c1785488863431209",
+    "client": "MAISON ARTS",
+    "artist": "Gordo & WhoMadeWho",
+    "track": "ENERGY",
+    "isrc": "QMBZ92642899",
+    "start_date": "2026-07-31",
+    "status": "active"
+  },
+  {
+    "id": "c1785488886545871",
+    "client": "ARMADA MUSIC",
+    "artist": "D.O.D & Izzy Bizu",
+    "track": "Careful",
+    "isrc": "NLF712604600",
+    "start_date": "2026-07-31",
+    "status": "active"
+  },
+  {
+    "id": "c1785488900974951",
+    "client": "PLATOON",
+    "artist": "GATTÜSO & VANDR",
+    "track": "ASE",
+    "isrc": "US23A9772065",
+    "start_date": "2026-07-31",
+    "status": "active"
+  },
+  {
+    "id": "c1785488911488256",
+    "client": "OUT FIT",
+    "artist": "LYOD",
+    "track": "Soul Searching",
+    "isrc": "FRX282653173",
+    "start_date": "2026-07-31",
+    "status": "active"
+  },
+  {
+    "id": "c1785488926401150",
+    "client": "THREE SIX ZERO",
+    "artist": "Tini Gessler",
+    "track": "125",
+    "isrc": "ZZA0Z2606968",
+    "start_date": "2026-07-31",
+    "status": "active"
   }
 ]
