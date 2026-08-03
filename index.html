@@ -524,6 +524,14 @@ async function searchTrack() {
   }
 }
 
+// btoa() only handles Latin-1 correctly — any accented character, curly
+// quote, emoji, etc. in a client/artist/track name silently corrupts into
+// invalid bytes otherwise. This wraps it so the JSON is UTF-8 safe before
+// being base64-encoded for the GitHub API.
+function utf8ToBase64(str) {
+  return btoa(unescape(encodeURIComponent(str)));
+}
+
 async function githubGetCampaigns(pat) {
   const res = await fetch(`https://api.github.com/repos/${REPO}/contents/data/campaigns.json?ref=${DATA_BRANCH}`, { headers: { Authorization: `Bearer ${pat}` } });
   if (!res.ok) throw new Error(`GitHub read failed (${res.status})`);
@@ -533,7 +541,7 @@ async function githubGetCampaigns(pat) {
 async function githubPutCampaigns(pat, list, sha, message) {
   const res = await fetch(`https://api.github.com/repos/${REPO}/contents/data/campaigns.json`, {
     method: 'PUT', headers: { Authorization: `Bearer ${pat}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, content: btoa(JSON.stringify(list, null, 2) + '\n'), sha, branch: DATA_BRANCH })
+    body: JSON.stringify({ message, content: utf8ToBase64(JSON.stringify(list, null, 2) + '\n'), sha, branch: DATA_BRANCH })
   });
   if (res.status === 409) return null; // stale sha — caller should retry
   if (!res.ok) throw new Error(`GitHub write failed (${res.status})`);
