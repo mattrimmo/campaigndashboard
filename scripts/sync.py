@@ -51,10 +51,16 @@ SP_SECRET = os.environ.get("SPOTIFY_CLIENT_SECRET", "")
 
 MIN_FOLLOWERS = 100  # same floor as the report generator / LTT
 
-# Blended average as of mid-2026 is roughly $0.003-0.005/stream (~£0.0022-0.0037
-# at current USD/GBP), independent artists commonly land around $0.004 (~£0.003).
-# This is a rough midpoint, not a real rate — adjust if you have better data on
-# your clients' actual distributor deals and audience geography.
+# Checked against multiple current 2026 sources: Spotify pays roughly $0.003-0.005
+# per stream, averaging ~$0.004 in the US and ~$0.0044 in the UK — ~£0.003 at
+# current USD/GBP either way, which is what this is set to. Still a blended
+# average, not a real rate — adjust if you have better data on a client's
+# actual distributor deal or audience geography.
+#
+# IMPORTANT CAVEAT: Spotify pays nothing at all on a track until it clears
+# 1,000 streams in a rolling 12-month window. For a brand-new campaign with
+# only a handful of streams so far, this estimate will show a small non-zero
+# number that doesn't reflect any money that's actually arrived yet.
 PER_STREAM_RATE_GBP = 0.003
 
 
@@ -84,6 +90,8 @@ def sot_get(path):
 
 _sp_token = None
 _sp_exp = 0
+_playlist_cache = {}  # spotify_id -> owner name — same playlist can appear
+                       # across multiple campaigns in one run; avoids re-fetching it
 
 
 def sp_token():
@@ -108,7 +116,10 @@ def sp_token():
 
 
 def sp_owner(spotify_id):
-    """Returns playlist owner display name ('' means editorial/Spotify-owned)."""
+    """Returns playlist owner display name ('' means editorial/Spotify-owned).
+    Cached per spotify_id for the lifetime of this run."""
+    if spotify_id in _playlist_cache:
+        return _playlist_cache[spotify_id]
     for attempt in range(2):
         tok = sp_token()
         r = requests.get(
@@ -122,8 +133,12 @@ def sp_owner(spotify_id):
             continue
         if not r.ok:
             print(f"  [debug] Spotify playlist lookup failed for {spotify_id}: {r.status_code}")
+            _playlist_cache[spotify_id] = ""
             return ""
-        return (r.json().get("owner") or {}).get("display_name") or ""
+        owner = (r.json().get("owner") or {}).get("display_name") or ""
+        _playlist_cache[spotify_id] = owner
+        return owner
+    _playlist_cache[spotify_id] = ""
     return ""
 
 
