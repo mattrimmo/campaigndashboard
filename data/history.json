@@ -4407,6 +4407,17 @@
       "independent_reach": 4252233,
       "estimated_revenue_gbp": 45166.99,
       "estimated_revenue_rate_gbp": 0.003
+    },
+    {
+      "date": "2026-10-15",
+      "total_streams": 15298081,
+      "daily_streams": 122411,
+      "editorial_count": 31,
+      "independent_count": 345,
+      "editorial_reach": 18548747,
+      "independent_reach": 4265700,
+      "estimated_revenue_gbp": 45894.24,
+      "estimated_revenue_rate_gbp": 0.003
     }
   ],
   "c1784820133283": [
