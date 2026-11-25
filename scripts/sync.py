@@ -1,256 +1,296 @@
 #!/usr/bin/env python3
 """
-Campaign Dashboard — sync script.
+Listen Up Campaign Revenue - daily sync.
 
-Runs daily via GitHub Actions (see .github/workflows/sync.yml). Reads
-data/campaigns.json (the tracked list — client, artist, track, ISRC,
-status), pulls current metrics from Spot On Track and Spotify for every
-"active" campaign, and appends a dated snapshot to data/history.json.
+1. Reads the Listen Up Priorities playlist on Spotify. Every track on it is a paid campaign. A track joins the
+   dashboard the first time it is seen, with the date it was added to the playlist as its campaign start.
+   Taking it off the playlist later does NOT remove it: revenue keeps being tracked after the campaign.
+2. For every record ever seen, pulls from Songstats:
+   - Spotify streams, daily running totals since release (for lifetime and any date window)
+   - YouTube views on the "<Artist> - Topic" upload only (the version YouTube Music plays). Songstats only
+     gives today's view count per video, so a daily log is kept here from the first run onwards.
 
-Campaigns with status != "active" (i.e. archived / stopped) are skipped
-entirely — no API calls are made for them, and their existing history is
-left untouched. This is the same discipline as the targettracking repo's
-sync.py: once you're done working a record, archive it and it stops
-costing API credits forever.
-
-Secrets (set as GitHub Actions repo secrets):
-  SOT_API_KEY            — Spot On Track bearer token
-  SPOTIFY_CLIENT_ID       — Spotify app client id
-  SPOTIFY_CLIENT_SECRET   — Spotify app client secret
-
-Metric choices, deliberately:
-  - "reach" is the summed follower count of playlists the track is
-    CURRENTLY placed on (independent + editorial), not artist followers.
-    Artist followers climb regardless of any one campaign's performance
-    (Release Radar, general artist growth), so they're a weak signal for
-    "did this campaign work." Playlist reach only grows when you land a
-    new placement — same logic as targettracking's independent_followers_total.
-  - "estimated_revenue_gbp" is exactly that — an ESTIMATE, built from Spot
-    On Track's total stream count for the ISRC multiplied by a configurable
-    blended per-stream rate (PER_STREAM_RATE_GBP below). Actual payouts
-    depend on listener geography, subscription tier, and your distributor
-    deal, none of which any API exposes — treat this as a directional
-    figure, never a real royalty statement number.
+Writes data/dashboard.json. Secrets: SONGSTATS_API_KEY, SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET.
 """
-import base64
 import json
 import os
-import subprocess
+import re
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import requests
 
-REPO_ROOT     = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CAMPAIGNS_FP  = os.path.join(REPO_ROOT, "data", "campaigns.json")
-HISTORY_FP    = os.path.join(REPO_ROOT, "data", "history.json")
-PLAYLIST_CACHE_FP = os.path.join(REPO_ROOT, "data", "playlist_cache.json")
-
-SOT_KEY   = os.environ.get("SOT_API_KEY", "")
-SP_ID     = os.environ.get("SPOTIFY_CLIENT_ID", "")
+PLAYLIST_ID = os.environ.get("PLAYLIST_ID", "3ev7Cq1opAjobbXqeOXrQG")
+SS_KEY = os.environ.get("SONGSTATS_API_KEY", "")
+SS_BASE = "https://api.songstats.com/enterprise/v1"
+SS_DELAY = float(os.environ.get("SS_DELAY", "0.3"))
+SP_ID = os.environ.get("SPOTIFY_CLIENT_ID", "")
 SP_SECRET = os.environ.get("SPOTIFY_CLIENT_SECRET", "")
 
-MIN_FOLLOWERS = 100  # same floor as the report generator / LTT
-
-# Checked against multiple current 2026 sources: Spotify pays roughly $0.003-0.005
-# per stream, averaging ~$0.004 in the US and ~$0.0044 in the UK — ~£0.003 at
-# current USD/GBP either way, which is what this is set to. Still a blended
-# average, not a real rate — adjust if you have better data on a client's
-# actual distributor deal or audience geography.
-#
-# IMPORTANT CAVEAT: Spotify pays nothing at all on a track until it clears
-# 1,000 streams in a rolling 12-month window. For a brand-new campaign with
-# only a handful of streams so far, this estimate will show a small non-zero
-# number that doesn't reflect any money that's actually arrived yet.
-PER_STREAM_RATE_GBP = 0.003
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_FP = os.path.join(ROOT, "data", "dashboard.json")
+calls = {"songstats": 0, "spotify": 0}
 
 
-def load_json(path, default):
-    if not os.path.exists(path):
-        return default
-    with open(path, "r", encoding="utf-8") as f:
-        content = f.read().strip()
-        return json.loads(content) if content else default
+class SyncError(Exception):
+    pass
 
 
-def save_json(path, data):
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+def load():
+    if os.path.exists(DATA_FP):
+        with open(DATA_FP, encoding="utf-8") as f:
+            txt = f.read().strip()
+            if txt:
+                return json.loads(txt)
+    return {"records": {}}
+
+
+def save(doc):
+    with open(DATA_FP, "w", encoding="utf-8") as f:
+        json.dump(doc, f, ensure_ascii=False, separators=(",", ":"))
         f.write("\n")
 
 
-def sot_get(path):
-    r = requests.get(
-        "https://www.spotontrack.com/api/v1" + path,
-        headers={"Authorization": "Bearer " + SOT_KEY},
-        timeout=30,
-    )
-    r.raise_for_status()
-    return r.json()
-
-
-_sp_token = None
-_sp_exp = 0
-_playlist_cache = {}  # spotify_id -> owner — loaded from PLAYLIST_CACHE_FP at
-                       # startup so it survives between runs, not just within
-                       # one. Ownership rarely changes, so once checked a
-                       # playlist is essentially never re-fetched from Spotify.
-
-
-def load_playlist_cache():
-    global _playlist_cache
-    _playlist_cache = load_json(PLAYLIST_CACHE_FP, {})
-    print(f"Loaded playlist cache: {len(_playlist_cache)} known playlists.")
-
-
-def save_playlist_cache():
-    save_json(PLAYLIST_CACHE_FP, _playlist_cache)
-
-
-def git_checkpoint(message):
-    """Commits + pushes whatever's currently on disk after every campaign,
-    so a timeout only loses the current campaign's work, and the next run
-    starts from a warmer playlist cache instead of from scratch."""
+def d(s):
     try:
-        subprocess.run(["git", "add", "data/history.json", "data/playlist_cache.json"], cwd=REPO_ROOT, check=True)
-        result = subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=REPO_ROOT)
-        if result.returncode == 0:
-            return
-        subprocess.run(["git", "commit", "-m", message], cwd=REPO_ROOT, check=True)
-        subprocess.run(["git", "pull", "--rebase", "origin", "main"], cwd=REPO_ROOT, check=True)
-        subprocess.run(["git", "push"], cwd=REPO_ROOT, check=True)
-        print(f"  [checkpoint] {message}")
-    except subprocess.CalledProcessError as e:
-        print(f"  [checkpoint] git step failed, continuing anyway: {e}")
+        return date.fromisoformat((s or "")[:10])
+    except ValueError:
+        return None
 
 
+# ------------------------------------------------------------------ Spotify playlist
 def sp_token():
-    global _sp_token, _sp_exp
-    if _sp_token and time.time() < _sp_exp:
-        return _sp_token
-    r = requests.post(
-        "https://accounts.spotify.com/api/token",
-        headers={
-            "Authorization": "Basic "
-            + base64.b64encode(f"{SP_ID}:{SP_SECRET}".encode()).decode(),
-            "Content-Type": "application/x-www-form-urlencoded",
-        },
-        data={"grant_type": "client_credentials"},
-        timeout=30,
-    )
-    r.raise_for_status()
-    data = r.json()
-    _sp_token = data["access_token"]
-    _sp_exp = time.time() + data["expires_in"] - 30
-    return _sp_token
+    r = requests.post("https://accounts.spotify.com/api/token", data={"grant_type": "client_credentials"},
+                      auth=(SP_ID, SP_SECRET), timeout=30)
+    calls["spotify"] += 1
+    if not r.ok:
+        raise SyncError(f"Spotify login failed ({r.status_code}): {r.text[:200]}")
+    return r.json()["access_token"]
 
 
-def sp_owner(spotify_id):
-    """Returns playlist owner display name ('' means editorial/Spotify-owned).
-    Cached per spotify_id for the lifetime of this run."""
-    if spotify_id in _playlist_cache:
-        return _playlist_cache[spotify_id]
-    for attempt in range(2):
-        tok = sp_token()
-        r = requests.get(
-            f"https://api.spotify.com/v1/playlists/{spotify_id}",
-            headers={"Authorization": "Bearer " + tok},
-            params={"fields": "owner.display_name"},
-            timeout=30,
-        )
-        if r.status_code == 429:
-            time.sleep(int(r.headers.get("Retry-After", "2")) + 0.5)
+def sp_get(url, tok, params=None):
+    for attempt in range(4):
+        r = requests.get(url, headers={"Authorization": f"Bearer {tok}"}, params=params, timeout=30)
+        calls["spotify"] += 1
+        if r.status_code == 429 and attempt < 3:
+            wait = min(int(r.headers.get("Retry-After", "5") or 5), 60)
+            print(f"  [spotify] 429, waiting {wait}s")
+            time.sleep(wait)
+            continue
+        return r
+    return r
+
+
+def playlist_tracks():
+    tok = sp_token()
+    fields = "next,items(added_at,track(id,name,artists(name),external_ids,album(id,name,album_type,release_date,images)))"
+    out = []
+    # Spotify has renamed this endpoint before, so try the newer name if the usual one is refused
+    for path in ("tracks", "items"):
+        url = f"https://api.spotify.com/v1/playlists/{PLAYLIST_ID}/{path}"
+        params = {"fields": fields, "limit": 100}
+        out = []
+        ok = True
+        while url:
+            r = sp_get(url, tok, params)
+            if not r.ok:
+                print(f"  [spotify] playlists/{path} -> {r.status_code} {r.text[:200]}")
+                ok = False
+                break
+            body = r.json()
+            for it in body.get("items") or []:
+                t = it.get("track") or it.get("item")
+                if t and t.get("id"):
+                    out.append((it.get("added_at"), t))
+            url, params = body.get("next"), None
+        if ok:
+            return out
+    raise SyncError("Spotify would not return the playlist. Check the app credentials, and that the playlist is public.")
+
+
+# ------------------------------------------------------------------ Songstats
+def ss_get(path, params):
+    params = {k: v for k, v in params.items() if v not in (None, "")}
+    for attempt in range(5):
+        r = requests.get(f"{SS_BASE}/{path}", params=params, headers={"apikey": SS_KEY, "accept": "application/json"}, timeout=60)
+        calls["songstats"] += 1
+        if r.status_code in (429, 500, 502, 503, 504) and attempt < 4:
+            ra = r.headers.get("Retry-After")
+            wait = min(int(float(ra)), 60) + 1 if ra and ra.replace(".", "", 1).isdigit() else 3 * (attempt + 1)
+            print(f"  [songstats] {r.status_code} on {path}, waiting {wait}s")
+            time.sleep(wait)
             continue
         if not r.ok:
-            print(f"  [debug] Spotify playlist lookup failed for {spotify_id}: {r.status_code}")
-            _playlist_cache[spotify_id] = ""
-            return ""
-        owner = (r.json().get("owner") or {}).get("display_name") or ""
-        _playlist_cache[spotify_id] = owner
-        return owner
-    _playlist_cache[spotify_id] = ""
-    return ""
+            raise SyncError(f"Songstats {path}: HTTP {r.status_code} {r.text[:160]}")
+        time.sleep(SS_DELAY)
+        body = r.json()
+        body = body.get("response", body)
+        if isinstance(body, dict) and body.get("result") == "error":
+            raise SyncError(f"Songstats {path}: {body.get('message')}")
+        return body
+    raise SyncError(f"Songstats {path}: kept failing")
 
 
-def process_campaign(entry):
-    isrc = entry["isrc"]
-
-    streams = sot_get(f"/tracks/{isrc}/spotify/streams")
-    current = sot_get(f"/tracks/{isrc}/spotify/playlists/current")
-    current = [p for p in current if (p.get("playlist", {}).get("followers") or 0) >= MIN_FOLLOWERS]
-
-    total_streams = streams[0]["total"] if streams else None
-    daily_streams = streams[0]["daily"] if streams else None
-
-    editorial_reach = 0
-    independent_reach = 0
-    editorial_count = 0
-    independent_count = 0
-
-    for p in current:
-        pl = p["playlist"]
-        followers = pl.get("followers") or 0
-        owner = sp_owner(pl["spotify_id"])
-        if owner.strip() == "":
-            editorial_reach += followers
-            editorial_count += 1
-        else:
-            independent_reach += followers
-            independent_count += 1
-
-    estimated_revenue_gbp = (
-        round(total_streams * PER_STREAM_RATE_GBP, 2) if total_streams is not None else None
-    )
-
-    return {
-        "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-        "total_streams": total_streams,
-        "daily_streams": daily_streams,
-        "editorial_count": editorial_count,
-        "independent_count": independent_count,
-        "editorial_reach": editorial_reach,
-        "independent_reach": independent_reach,
-        "estimated_revenue_gbp": estimated_revenue_gbp,
-        "estimated_revenue_rate_gbp": PER_STREAM_RATE_GBP,
-    }
+def source_data(body, source):
+    for s in (body or {}).get("stats") or []:
+        if s.get("source") == source:
+            return s.get("data") or {}
+    return {}
 
 
-def main():
-    if not (SOT_KEY and SP_ID and SP_SECRET):
-        print("Missing one or more required secrets (SOT_API_KEY / SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET).")
-        sys.exit(1)
-
-    load_playlist_cache()
-    campaigns = load_json(CAMPAIGNS_FP, [])
-    history = load_json(HISTORY_FP, {})
-
-    for entry in campaigns:
-        if entry.get("status") != "active":
-            continue  # archived — no calls, history left as-is
-
-        cid = entry["id"]
-        cache_size_before = len(_playlist_cache)
-        print(f"Syncing {entry.get('client','?')} / {entry.get('artist','?')} - {entry.get('track','?')} ({entry.get('isrc')})")
-        try:
-            snap = process_campaign(entry)
-        except Exception as e:
-            print(f"  ERROR: {e}")
+def find_ids(isrc, hint):
+    """Songstats track + artist IDs (artist-scoped keys need both on every call). Looked up once, then kept."""
+    for q in [isrc, hint]:
+        if not q:
             continue
+        for res in (ss_get("tracks/search", {"q": q, "limit": 5}) or {}).get("results") or []:
+            artists = [a.get("songstats_artist_id") for a in res.get("artists") or [] if a.get("songstats_artist_id")]
+            for aid in artists or [None]:
+                ident = {k: v for k, v in {"songstats_track_id": res.get("songstats_track_id"), "songstats_artist_id": aid}.items() if v}
+                try:
+                    body = ss_get("tracks/info", dict(ident, source="all"))
+                except SyncError:
+                    continue
+                info = (body or {}).get("track_info") or {}
+                isrcs = {l.get("isrc") for l in info.get("links") or [] if l.get("isrc")}
+                if q != isrc or isrc in isrcs or not isrcs:
+                    return ident, info
+    raise SyncError(f"could not find {isrc} on Songstats")
 
-        history.setdefault(cid, [])
-        # Avoid duplicate snapshots if the workflow runs twice in a day
-        history[cid] = [h for h in history[cid] if h["date"] != snap["date"]]
-        history[cid].append(snap)
-        print(f"  -> {snap}")
 
-        # Checkpoint after every campaign — see git_checkpoint() docstring.
-        new_playlists = len(_playlist_cache) - cache_size_before
-        save_json(HISTORY_FP, history)
-        save_playlist_cache()
-        git_checkpoint(f"Sync checkpoint: {entry.get('client','?')} - {entry.get('track','?')} ({new_playlists} new playlist lookups)")
+def norm(s):
+    return re.sub(r"[^a-z0-9]", "", (s or "").lower())
 
-    print(f"Done. Playlist cache now holds {len(_playlist_cache)} known playlists.")
+
+def youtube_topic_views(ident, artists):
+    """Views on the auto-generated '<Artist> - Topic' upload(s): the version YouTube Music plays.
+    Fan uploads and other channels are ignored."""
+    body = ss_get("tracks/stats", dict(ident, source="youtube", with_videos="true", limit=100))
+    vids = source_data(body, "youtube").get("videos") or []
+    names = {norm(a) for a in artists}
+    keep = []
+    for v in vids:
+        ch = v.get("youtube_channel_name") or ""
+        if not ch.endswith(" - Topic"):
+            continue
+        # the Topic channel of one of the record's artists (a collab can sit on either artist's Topic channel)
+        if names and norm(ch[:-8]) not in names and not any(n and n in norm(ch) for n in names):
+            continue
+        keep.append({"id": v.get("external_id"), "title": v.get("title"), "channel": ch, "views": v.get("view_count") or 0,
+                     "uploaded": v.get("upload_date")})
+    return keep
+
+
+# ------------------------------------------------------------------ one record
+def sync_record(rec):
+    errors = []
+    if not rec.get("songstats"):
+        ident, info = find_ids(rec["isrc"], f"{', '.join(rec.get('artists') or [])} {rec.get('title') or ''}".strip())
+        rec["songstats"] = ident
+        labels = [l.get("name") for l in info.get("labels") or [] if l.get("name")]
+        if labels and not rec.get("label"):
+            rec["label"] = labels[0]
+    ident = rec["songstats"]
+
+    if not rec.get("label"):
+        try:
+            info = (ss_get("tracks/info", dict(ident, source="spotify")) or {}).get("track_info") or {}
+            labels = [l.get("name") for l in info.get("labels") or [] if l.get("name")]
+            if labels:
+                rec["label"] = labels[0]
+        except SyncError as e:
+            errors.append(f"label: {e}")
+
+    # Spotify streams: first run pulls everything since release, later runs only the last few weeks
+    today = date.today()
+    have = rec.get("streams") or []
+    rel = d(rec.get("release_date")) or (today - timedelta(days=365))
+    start = rel - timedelta(days=1)
+    if have:
+        start = max(start, d(have[-1][0]) - timedelta(days=21))
+    try:
+        body = ss_get("tracks/historic_stats", dict(ident, source="spotify", start_date=start.isoformat(), end_date=today.isoformat()))
+        hist = source_data(body, "spotify").get("history") or []
+        merged = {dt: v for dt, v in have}
+        for h in hist:
+            if h.get("date") and h.get("streams_total") is not None:
+                merged[h["date"][:10]] = h["streams_total"]
+        rec["streams"] = sorted([[k, v] for k, v in merged.items()])
+    except SyncError as e:
+        errors.append(f"spotify streams: {e}")
+
+    try:
+        vids = youtube_topic_views(ident, rec.get("artists") or [])
+        rec["youtube"] = vids
+        total = sum(v["views"] for v in vids)
+        log = [x for x in rec.get("youtube_log") or [] if x[0] != today.isoformat()]
+        if vids:
+            log.append([today.isoformat(), total])
+        rec["youtube_log"] = log
+    except SyncError as e:
+        errors.append(f"youtube: {e}")
+
+    rec["errors"] = errors
+    rec["synced_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return rec
+
+
+# ------------------------------------------------------------------ main
+def main():
+    if not (SS_KEY and SP_ID and SP_SECRET):
+        print("Missing a secret: SONGSTATS_API_KEY, SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET are all needed.")
+        sys.exit(1)
+    doc = load()
+    recs = doc.setdefault("records", {})
+
+    print("Reading the Listen Up Priorities playlist")
+    tracks = playlist_tracks()
+    print(f"  {len(tracks)} tracks on the playlist")
+    on_now = set()
+    for added_at, t in tracks:
+        isrc = ((t.get("external_ids") or {}).get("isrc") or "").upper()
+        if not isrc:
+            print(f"  no ISRC for {t.get('name')}, skipped")
+            continue
+        on_now.add(isrc)
+        al = t.get("album") or {}
+        imgs = al.get("images") or []
+        r = recs.get(isrc)
+        if not r:
+            print(f"  NEW: {', '.join(a.get('name') for a in t.get('artists') or [])} - {t.get('name')}")
+            r = recs[isrc] = {"isrc": isrc, "first_seen": date.today().isoformat()}
+        r.update({
+            "spotify_id": t.get("id"), "title": t.get("name"),
+            "artists": [a.get("name") for a in t.get("artists") or []],
+            "album_id": al.get("id"), "album_name": al.get("name"), "album_type": al.get("album_type"),
+            "release_date": al.get("release_date"),
+            "image": (imgs[1] if len(imgs) > 1 else imgs[0])["url"] if imgs else None,
+        })
+        added = (added_at or "")[:10]
+        if added and (not r.get("added_at") or added < r["added_at"]):
+            r["added_at"] = added   # campaign start = when it went on the playlist (earliest if re-added)
+    for isrc, r in recs.items():
+        r["on_playlist"] = isrc in on_now
+
+    ok = failed = 0
+    for isrc, r in recs.items():
+        print(f"Syncing {', '.join(r.get('artists') or [])} - {r.get('title')} ({isrc})")
+        try:
+            sync_record(r)
+            ok += 1
+            if r["errors"]:
+                print("  partial:", "; ".join(r["errors"]))
+        except Exception as e:  # keep going, keep the old data for this one
+            r.setdefault("errors", []).append(str(e))
+            print(f"  FAILED: {e}")
+            failed += 1
+    doc["generated_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    doc["playlist_id"] = PLAYLIST_ID
+    save(doc)
+    print(f"\nSUMMARY ok={ok} failed={failed} | calls: Songstats {calls['songstats']}, Spotify {calls['spotify']}")
+    if ok == 0 and failed:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
