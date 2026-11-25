@@ -2,15 +2,16 @@
 """
 Listen Up Campaign Revenue - daily sync.
 
-1. Reads the Listen Up Priorities playlist on Spotify. Every track on it is a paid campaign. A track joins the
-   dashboard the first time it is seen, with the date it was added to the playlist as its campaign start.
+1. Reads the Listen Up Priorities playlist (public Spotify embed page, no API needed). Every track on it is a paid
+   campaign. A track joins the dashboard the first day it is seen, which is its campaign start (release day for anything
+   added before release, and for everything already on the playlist the first time this runs).
    Taking it off the playlist later does NOT remove it: revenue keeps being tracked after the campaign.
 2. For every record ever seen, pulls from Songstats:
    - Spotify streams, daily running totals since release (for lifetime and any date window)
    - YouTube views on the "<Artist> - Topic" upload only (the version YouTube Music plays). Songstats only
      gives today's view count per video, so a daily log is kept here from the first run onwards.
 
-Writes data/dashboard.json. Secrets: SONGSTATS_API_KEY, SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET.
+Writes data/dashboard.json. Secret: SONGSTATS_API_KEY.
 """
 import json
 import os
@@ -25,8 +26,6 @@ PLAYLIST_ID = os.environ.get("PLAYLIST_ID", "3ev7Cq1opAjobbXqeOXrQG")
 SS_KEY = os.environ.get("SONGSTATS_API_KEY", "")
 SS_BASE = "https://api.songstats.com/enterprise/v1"
 SS_DELAY = float(os.environ.get("SS_DELAY", "0.3"))
-SP_ID = os.environ.get("SPOTIFY_CLIENT_ID", "")
-SP_SECRET = os.environ.get("SPOTIFY_CLIENT_SECRET", "")
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_FP = os.path.join(ROOT, "data", "dashboard.json")
@@ -60,53 +59,22 @@ def d(s):
 
 
 # ------------------------------------------------------------------ Spotify playlist
-def sp_token():
-    r = requests.post("https://accounts.spotify.com/api/token", data={"grant_type": "client_credentials"},
-                      auth=(SP_ID, SP_SECRET), timeout=30)
+# Spotify's Web API now refuses to list playlist tracks for apps like ours (403 / "user authentication required").
+# The public embed player for a public playlist still lists every track, so the track IDs are read from that.
+def playlist_track_ids():
+    url = f"https://open.spotify.com/embed/playlist/{PLAYLIST_ID}"
+    r = requests.get(url, headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36",
+                                   "Accept-Language": "en-GB,en;q=0.9"}, timeout=30)
     calls["spotify"] += 1
     if not r.ok:
-        raise SyncError(f"Spotify login failed ({r.status_code}): {r.text[:200]}")
-    return r.json()["access_token"]
-
-
-def sp_get(url, tok, params=None):
-    for attempt in range(4):
-        r = requests.get(url, headers={"Authorization": f"Bearer {tok}"}, params=params, timeout=30)
-        calls["spotify"] += 1
-        if r.status_code == 429 and attempt < 3:
-            wait = min(int(r.headers.get("Retry-After", "5") or 5), 60)
-            print(f"  [spotify] 429, waiting {wait}s")
-            time.sleep(wait)
-            continue
-        return r
-    return r
-
-
-def playlist_tracks():
-    tok = sp_token()
-    fields = "next,items(added_at,track(id,name,artists(name),external_ids,album(id,name,album_type,release_date,images)))"
-    out = []
-    # Spotify has renamed this endpoint before, so try the newer name if the usual one is refused
-    for path in ("tracks", "items"):
-        url = f"https://api.spotify.com/v1/playlists/{PLAYLIST_ID}/{path}"
-        params = {"fields": fields, "limit": 100}
-        out = []
-        ok = True
-        while url:
-            r = sp_get(url, tok, params)
-            if not r.ok:
-                print(f"  [spotify] playlists/{path} -> {r.status_code} {r.text[:200]}")
-                ok = False
-                break
-            body = r.json()
-            for it in body.get("items") or []:
-                t = it.get("track") or it.get("item")
-                if t and t.get("id"):
-                    out.append((it.get("added_at"), t))
-            url, params = body.get("next"), None
-        if ok:
-            return out
-    raise SyncError("Spotify would not return the playlist. Check the app credentials, and that the playlist is public.")
+        raise SyncError(f"Spotify embed page returned {r.status_code}. Is the playlist still public?")
+    ids = []
+    for m in re.finditer(r"spotify:track:([A-Za-z0-9]{22})", r.text):
+        if m.group(1) not in ids:
+            ids.append(m.group(1))
+    if not ids:
+        raise SyncError("Could not find any tracks on the playlist's embed page. Spotify may have changed the page.")
+    return ids
 
 
 # ------------------------------------------------------------------ Songstats
@@ -157,6 +125,27 @@ def find_ids(isrc, hint):
                 if q != isrc or isrc in isrcs or not isrcs:
                     return ident, info
     raise SyncError(f"could not find {isrc} on Songstats")
+
+
+def lookup_spotify(sid):
+    """Songstats IDs and track info from a Spotify track ID."""
+    try:
+        body = ss_get("tracks/info", {"spotify_track_id": sid, "source": "all"})
+        info = (body or {}).get("track_info") or {}
+        if info.get("songstats_track_id"):
+            ident = {"songstats_track_id": info["songstats_track_id"]}
+            aid = next((a.get("songstats_artist_id") for a in info.get("artists") or [] if a.get("songstats_artist_id")), None)
+            if aid:
+                ident["songstats_artist_id"] = aid
+            return ident, info
+    except SyncError as e:
+        print(f"  direct lookup failed ({e}), trying search")
+    for res in (ss_get("tracks/search", {"q": f"https://open.spotify.com/track/{sid}", "limit": 1}) or {}).get("results") or []:
+        aid = next((a.get("songstats_artist_id") for a in res.get("artists") or [] if a.get("songstats_artist_id")), None)
+        ident = {k: v for k, v in {"songstats_track_id": res.get("songstats_track_id"), "songstats_artist_id": aid}.items() if v}
+        info = (ss_get("tracks/info", dict(ident, source="all")) or {}).get("track_info") or {}
+        return ident, info
+    raise SyncError("not found")
 
 
 def norm(s):
@@ -238,40 +227,48 @@ def sync_record(rec):
 
 # ------------------------------------------------------------------ main
 def main():
-    if not (SS_KEY and SP_ID and SP_SECRET):
-        print("Missing a secret: SONGSTATS_API_KEY, SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET are all needed.")
+    if not SS_KEY:
+        print("Missing the SONGSTATS_API_KEY secret.")
         sys.exit(1)
     doc = load()
     recs = doc.setdefault("records", {})
 
     print("Reading the Listen Up Priorities playlist")
-    tracks = playlist_tracks()
-    print(f"  {len(tracks)} tracks on the playlist")
+    ids = playlist_track_ids()
+    print(f"  {len(ids)} tracks on the playlist")
+    first_run = not recs
+    by_sp = {r.get("spotify_id"): k for k, r in recs.items()}
     on_now = set()
-    for added_at, t in tracks:
-        isrc = ((t.get("external_ids") or {}).get("isrc") or "").upper()
-        if not isrc:
-            print(f"  no ISRC for {t.get('name')}, skipped")
-            continue
-        on_now.add(isrc)
-        al = t.get("album") or {}
-        imgs = al.get("images") or []
-        r = recs.get(isrc)
-        if not r:
-            print(f"  NEW: {', '.join(a.get('name') for a in t.get('artists') or [])} - {t.get('name')}")
-            r = recs[isrc] = {"isrc": isrc, "first_seen": date.today().isoformat()}
-        r.update({
-            "spotify_id": t.get("id"), "title": t.get("name"),
-            "artists": [a.get("name") for a in t.get("artists") or []],
-            "album_id": al.get("id"), "album_name": al.get("name"), "album_type": al.get("album_type"),
-            "release_date": al.get("release_date"),
-            "image": (imgs[1] if len(imgs) > 1 else imgs[0])["url"] if imgs else None,
-        })
-        added = (added_at or "")[:10]
-        if added and (not r.get("added_at") or added < r["added_at"]):
-            r["added_at"] = added   # campaign start = when it went on the playlist (earliest if re-added)
-    for isrc, r in recs.items():
-        r["on_playlist"] = isrc in on_now
+    for sid in ids:
+        key = by_sp.get(sid)
+        if not key:
+            try:
+                ident, info = lookup_spotify(sid)
+            except SyncError as e:
+                print(f"  could not find Spotify track {sid} on Songstats yet: {e}")
+                continue
+            isrc = next((l.get("isrc") for l in info.get("links") or [] if l.get("source") == "spotify" and l.get("isrc")), None) \
+                or next((l.get("isrc") for l in info.get("links") or [] if l.get("isrc")), None) or sid
+            key = isrc.upper()
+            labels = [l.get("name") for l in info.get("labels") or [] if l.get("name")]
+            rel = (info.get("release_date") or "")[:10]
+            seen = date.today().isoformat()
+            # campaign start: release day (from Songstats) for anything already on the playlist the first time this runs,
+            # anything added before release, and anything that appears within a week of release. Records you come
+            # on board with later start the day they first show up on the playlist (the sync runs daily).
+            # within a week of release counts as "from release" (it was most likely added on release day)
+            near_release = rel and d(seen) - d(rel) <= timedelta(days=7)
+            start = rel if rel and (first_run or near_release) else seen
+            recs[key] = {"isrc": key, "spotify_id": sid, "songstats": ident, "first_seen": seen, "added_at": start,
+                         "title": info.get("title"), "artists": [a.get("name") for a in info.get("artists") or []],
+                         "release_date": rel or None, "label": labels[0] if labels else None, "image": info.get("avatar")}
+            r = recs[key]
+            print(f"  NEW: {', '.join(r['artists'])} - {r['title']} (campaign from {start})")
+        on_now.add(key)
+    for k, r in recs.items():
+        r["on_playlist"] = k in on_now
+        # tracks from the same release go together: same label and release day
+        r["album_id"] = r.get("album_id") or f"{norm(r.get('label') or '')}|{r.get('release_date') or ''}|{norm((r.get('artists') or [''])[0]) if not r.get('label') else ''}"
 
     ok = failed = 0
     for isrc, r in recs.items():
