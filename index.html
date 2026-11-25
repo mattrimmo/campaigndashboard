@@ -1,616 +1,431 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="en-GB">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Campaign Dashboard</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20viewBox=%270%200%2032%2032%27%3E%3Crect%20width=%2732%27%20height=%2732%27%20rx=%277%27%20fill=%27%237a7f8c%27/%3E%3Cg%20fill=%27%23fff%27%3E%3Crect%20x=%276%27%20y=%276%27%20width=%279%27%20height=%279%27%20rx=%272%27/%3E%3Crect%20x=%2717%27%20y=%276%27%20width=%279%27%20height=%279%27%20rx=%272%27/%3E%3Crect%20x=%276%27%20y=%2717%27%20width=%279%27%20height=%279%27%20rx=%272%27/%3E%3Crect%20x=%2717%27%20y=%2717%27%20width=%279%27%20height=%279%27%20rx=%272%27/%3E%3C/g%3E%3C/svg%3E">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Listen Up · Campaign Revenue</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
-  :root {
-    --page-bg: #EEEAF9;
-    --card-bg: #1D1440;
-    --card-bg-2: #241A4E;
-    --border: rgba(255,255,255,0.08);
-    --text: #F4F2FC;
-    --text-dim: #A79FC9;
-    --cyan: #3EE0C8;
-    --purple: #9B7BF5;
-    --pink: #FF5DA0;
-    --amber: #FFC15E;
-    --red: #FF5C7A;
-    --green: #35D07F;
-    --mono: "IBM Plex Mono", "SF Mono", Consolas, monospace;
-    --sans: "Inter", -apple-system, "Segoe UI", sans-serif;
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    background: var(--page-bg);
-    color: #2A2450;
-    font-family: var(--sans);
-    padding: 28px 36px 80px;
-  }
-  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; flex-wrap: wrap; gap: 12px; }
-  h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.01em; margin: 0; color: #2A2450; }
-  h1 span { color: #8B84AE; font-weight: 500; }
-  .controls select {
-    background: #fff; border: 1px solid #DCD5F0; color: #2A2450;
-    font-family: var(--sans); font-size: 13px; padding: 8px 12px; border-radius: 8px;
-  }
+:root{
+  --bg:#101014; --panel:#17171d; --surface:#1d1d24; --surface2:#25252e; --border:rgba(255,255,255,.07); --border2:rgba(255,255,255,.13);
+  --text:#f2f2f4; --muted:#9a9aa3; --faint:#62626c; --accent:#5b7cfa; --up:#34d399; --down:#f87171; --gold:#e8b95c;
+  --sans:"Inter",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:400 14.5px/1.5 var(--sans)}
+button,input{font:inherit;color:inherit}
+.wrap{max-width:1380px;margin:0 auto;padding:28px 32px 80px}
+.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+header{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:22px}
+h1{margin:0;font-size:22px;letter-spacing:-.01em}
+.sub{color:var(--faint);font-size:13px;margin-top:3px;max-width:80ch}
+.hbtn{background:none;border:1px solid var(--border2);border-radius:8px;padding:6px 12px;color:var(--muted);cursor:pointer;font-size:13px}
+.hbtn:hover{color:var(--text);border-color:var(--accent)}
+.rates{display:none;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:18px;gap:18px;align-items:flex-end;flex-wrap:wrap}
+.rates.on{display:flex}
+.rates label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+.rates input{width:120px;background:var(--surface);border:1px solid var(--border2);border-radius:8px;padding:7px 10px}
+.rates .note{font-size:12px;color:var(--faint);max-width:520px}
 
-  .breadcrumb { font-size: 13px; color: #8B84AE; margin-bottom: 16px; }
-  .breadcrumb a { color: var(--purple); text-decoration: none; cursor: pointer; font-weight: 600; }
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+@media(max-width:1000px){.tiles{grid-template-columns:repeat(2,1fr)}}
+.tile{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px 18px}
+.tile .l{font-size:12px;color:var(--muted);font-weight:600}
+.tile .v{font-size:28px;font-weight:700;letter-spacing:-.02em;margin:4px 0 2px}
+.tile .s{font-size:12px;color:var(--faint)}
 
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px; }
+.bar{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.chip{font-size:12.5px;padding:5px 11px;border-radius:999px;border:1px solid var(--border2);background:transparent;color:var(--muted);cursor:pointer;white-space:nowrap}
+.chip:hover{color:var(--text)}
+.chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.chip .n{opacity:.7;margin-left:4px}
+.toggle{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--muted);cursor:pointer}
+.toggle input{accent-color:var(--accent);width:16px;height:16px}
 
-  .card {
-    background: var(--card-bg);
-    border-radius: 18px;
-    padding: 0;
-    cursor: pointer;
-    overflow: hidden;
-    box-shadow: 0 8px 24px rgba(42,36,80,0.14);
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
-  }
-  .card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(42,36,80,0.22); }
-  .accent-bar { height: 5px; width: 100%; }
-  .card-body { padding: 18px 18px 14px; }
-  .card-top { display: flex; justify-content: space-between; align-items: flex-start; }
-  .card-title { font-size: 15px; font-weight: 700; color: var(--text); }
-  .card-sub { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+.table{background:var(--panel);border:1px solid var(--border);border-radius:16px;overflow:hidden}
+.row{display:grid;grid-template-columns:44px minmax(220px,2.3fr) 140px repeat(4,minmax(96px,1fr)) 120px 28px;gap:14px;align-items:center;padding:11px 18px;border-top:1px solid var(--border)}
+.row.h{border-top:0;padding-top:10px;padding-bottom:8px}
+.th{background:none;border:0;padding:0;text-align:left;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);cursor:pointer}
+.th.on,.th:hover{color:var(--text)}
+.row.c{cursor:pointer}
+.row.c:hover{background:rgba(255,255,255,.02)}
+.row.c.open{background:rgba(91,124,250,.08);box-shadow:inset 3px 0 0 var(--accent)}
+.art{width:44px;height:44px;border-radius:8px;object-fit:cover;background:var(--surface2);display:block}
+.nm{min-width:0}
+.nm .t{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nm .a{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.st{font-size:12.5px;line-height:1.35}
+.live{color:var(--up);font-weight:600}
+.ended{color:var(--muted)}
+.cell b{font-size:15px;display:block}
+.cell span{font-size:11.5px;color:var(--faint)}
+.chev{color:var(--faint);transition:transform .15s}
+.open .chev{transform:rotate(90deg);color:var(--text)}
+.grp{display:flex;justify-content:space-between;align-items:center;padding:12px 18px;border-top:1px solid var(--border2);background:var(--surface);font-weight:700}
+.grp .tot{font-size:13px;color:var(--muted);font-weight:500}
+.grp .tot b{color:var(--text);font-size:15px;margin-left:6px}
 
-  .status-icon { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 12px; }
-  .status-icon.up { background: rgba(53,208,127,0.18); color: var(--green); }
-  .status-icon.down { background: rgba(255,92,122,0.18); color: var(--red); }
-  .status-icon.flat { background: rgba(167,159,201,0.18); color: var(--text-dim); }
-
-  .kpi-row { display: flex; gap: 18px; margin-top: 14px; flex-wrap: wrap; }
-  .kpi .n { font-size: 22px; font-weight: 800; color: var(--text); line-height: 1.1; }
-  .kpi .n.money { color: var(--amber); }
-  .kpi .l { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); margin-top: 3px; }
-  .delta { font-size: 11px; font-weight: 700; margin-left: 6px; }
-  .delta.up { color: var(--green); }
-  .delta.down { color: var(--red); }
-
-  canvas.spark { margin-top: 12px; max-height: 44px; }
-
-  .detail-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 8px; }
-  .chart-box { background: var(--card-bg); border-radius: 18px; padding: 18px; box-shadow: 0 8px 24px rgba(42,36,80,0.14); }
-  .chart-box h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); margin: 0 0 12px; }
-
-  .campaign-actions { display: flex; gap: 10px; margin: 4px 0 16px; }
-  .campaign-actions button {
-    background: #fff; border: 1px solid #DCD5F0; color: #2A2450; font-family: var(--sans);
-    font-size: 13px; padding: 8px 14px; border-radius: 8px; cursor: pointer; font-weight: 600;
-  }
-  .campaign-actions button.danger { background: #FFE7EC; border-color: #FFB8C6; color: #C2295A; }
-  .campaign-actions button:hover { filter: brightness(0.97); }
-
-  .estimate-note { font-size: 12px; color: #7A7398; margin: 8px 0 20px; padding: 10px 14px; background: #fff; border-radius: 10px; border: 1px solid #DCD5F0; }
-
-  .empty { color: #8B84AE; font-size: 14px; padding: 60px 0; text-align: center; }
-
-  .admin { margin-top: 40px; border-top: 1px solid #D8D1EE; padding-top: 20px; }
-  .admin summary { font-size: 13px; color: #8B84AE; cursor: pointer; font-weight: 600; }
-  .admin-form { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 14px; }
-  .admin-form input, .admin-form select {
-    background: #fff; border: 1px solid #DCD5F0; color: #2A2450; font-family: var(--sans);
-    font-size: 13px; padding: 9px 11px; border-radius: 8px;
-  }
-  .admin-form .full { grid-column: 1 / -1; }
-  .admin-form button {
-    background: var(--purple); border: none; color: #fff; font-family: var(--sans); font-weight: 700;
-    font-size: 13px; padding: 10px 14px; border-radius: 8px; cursor: pointer;
-  }
-  .admin-msg { font-size: 12px; margin-top: 8px; font-weight: 600; }
-  .admin-msg.ok { color: var(--green); }
-  .admin-msg.err { color: var(--red); }
+.det{border-top:1px solid var(--border);padding:16px 20px 20px;background:#141419}
+.dstats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+@media(max-width:1000px){.dstats{grid-template-columns:repeat(2,1fr)}}
+.ds{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px}
+.ds.win{border-color:rgba(91,124,250,.5)}
+.ds .l{font-size:11.5px;color:var(--muted);font-weight:600}
+.ds .v{font-size:22px;font-weight:700;margin:2px 0}
+.ds .s{font-size:11.5px;color:var(--faint)}
+.chartbox{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px 6px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:11.5px;color:var(--faint);margin:6px 0 2px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.slider{position:relative;height:28px;margin:4px 0 0}
+.slider input{position:absolute;left:0;right:0;width:100%;top:6px;pointer-events:none;-webkit-appearance:none;appearance:none;background:none;height:16px}
+.slider input::-webkit-slider-thumb{pointer-events:auto;-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--accent);border:2px solid #fff;cursor:pointer}
+.slider input::-moz-range-thumb{pointer-events:auto;width:14px;height:14px;border-radius:50%;background:var(--accent);border:2px solid #fff;cursor:pointer}
+.slider .track{position:absolute;left:8px;right:8px;top:13px;height:3px;background:var(--surface2);border-radius:2px}
+.slider .fill{position:absolute;top:13px;height:3px;background:var(--accent);border-radius:2px}
+.winbar{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin-top:2px}
+.winbar .btns{display:flex;gap:6px;flex-wrap:wrap}
+.tracks{margin-top:14px;width:100%;border-collapse:collapse;font-size:13px}
+.tracks th{text-align:left;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);font-weight:700;padding:6px 8px;border-bottom:1px solid var(--border)}
+.tracks td{padding:7px 8px;border-bottom:1px solid var(--border)}
+.tracks td.n,.tracks th.n{text-align:right}
+.off{font-size:11px;color:var(--faint);border:1px solid var(--border2);border-radius:5px;padding:0 5px;margin-left:6px}
+.warn{font-size:12.5px;color:var(--gold);margin:10px 0 0}
+.empty{padding:40px;text-align:center;color:var(--faint)}
+footer{margin-top:18px;font-size:12px;color:var(--faint);line-height:1.6}
 </style>
 </head>
 <body>
-
-<header>
-  <h1>Campaign Dashboard <span>· internal</span></h1>
-  <div class="controls">
-    <select id="statusFilter">
-      <option value="active">Active only</option>
-      <option value="all">All (incl. archived)</option>
-      <option value="archived">Archived only</option>
-    </select>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Campaign revenue</h1>
+      <div class="sub" id="sub">Estimated gross revenue for every record on Listen Up Priorities, from Spotify streams and YouTube Music views. Totals run from release day.</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center"><span class="muted" style="font-size:12.5px" id="updated"></span><button class="hbtn" id="ratesBtn">Rates</button></div>
+  </header>
+  <div class="rates" id="rates">
+    <div><label for="rSp">Spotify, £ per 1,000 streams</label><input id="rSp" type="number" step="0.01"></div>
+    <div><label for="rYt">YouTube Music, £ per 1,000 views</label><input id="rYt" type="number" step="0.01"></div>
+    <button class="hbtn" id="ratesReset">Reset to defaults</button>
+    <div class="note">Defaults: Spotify £3.28 per 1,000 (Ditto's figure, £327.75 per 100,000). YouTube Music £1.24 per 1,000 (published official-channel rate of $0.00164 a view at $1 = £0.756). Changes are saved in this browser only.</div>
   </div>
-</header>
-
-<div class="breadcrumb" id="breadcrumb"><a onclick="renderClients()">Clients</a></div>
-<div id="view"></div>
-
-<details class="admin">
-  <summary>Add / edit campaigns</summary>
-  <p style="font-size:12px; color:#8B84AE; max-width:640px;">
-    Paste these once — all kept in this browser's storage only. Same values as the report generator / LTT.
-  </p>
-  <div class="admin-form">
-    <input id="pat" type="password" placeholder="GitHub PAT" class="full">
-    <input id="sotKey" type="password" placeholder="Spot On Track API key" class="full">
-    <input id="spId" type="password" placeholder="Spotify Client ID">
-    <input id="spSecret" type="password" placeholder="Spotify Client Secret">
+  <div class="tiles" id="tiles"></div>
+  <div class="bar">
+    <div class="chips" id="labels"></div>
+    <label class="toggle"><input type="checkbox" id="grp">Group by label</label>
   </div>
-
-  <div class="admin-form" style="margin-top:14px;">
-    <select id="f_client_select" onchange="onClientSelectChange()">
-      <option value="">Select client…</option>
-      <option value="__new__">+ Add new client</option>
-    </select>
-    <input id="f_client_new" placeholder="New client name" style="display:none;">
-    <input id="f_start" type="date">
-  </div>
-
-  <div class="admin-form" style="margin-top:14px;">
-    <input id="trackSearch" placeholder="Spotify track, album, or playlist link…" class="full">
-    <button onclick="searchTrack()">Search</button>
-  </div>
-  <div style="font-size:11px; color:#8B84AE; margin-top:6px;">Set the client + date above, search, then click each result you want — they'll queue up below rather than saving one at a time.</div>
-  <div id="searchResults" class="grid" style="margin-top:10px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));"></div>
-
-  <div id="pendingWrap" style="display:none; margin-top:18px;">
-    <div style="font-size:12px; font-weight:700; color:#8B84AE; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:8px;">Pending campaigns (<span id="pendingCount">0</span>)</div>
-    <div id="pendingList" style="display:flex; flex-direction:column; gap:8px;"></div>
-    <button id="saveBtn" onclick="savePending()" style="margin-top:12px;">Save all pending campaigns</button>
-  </div>
-  <div id="adminMsg" class="admin-msg"></div>
-</details>
-
+  <div class="table" id="table"></div>
+  <footer>
+    Spotify revenue = streams × the Spotify rate. YouTube Music revenue = views on the record's "Artist - Topic" upload (the version YouTube Music plays) × the YouTube rate; fan uploads are not counted.
+    Other DSPs are not included: Songstats has no stream counts for Apple Music, Amazon, Deezer or Tidal. Gross figures, before distributor or label cuts.
+    Spotify reports 1 to 2 days late, so the newest days can look flat until the numbers land.
+  </footer>
+</div>
 <script>
-const REPO = "mattrimmo/campaigndashboard";
-const DATA_BRANCH = "main";
-const ACCENTS = [
-  'linear-gradient(90deg,#3EE0C8,#9B7BF5)',
-  'linear-gradient(90deg,#9B7BF5,#FF5DA0)',
-  'linear-gradient(90deg,#FFC15E,#FF5DA0)',
-  'linear-gradient(90deg,#3EE0C8,#35D07F)'
-];
+(function () {
+'use strict';
+var DAY = 864e5, MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+var DEF = { sp: 3.2775, yt: 1.24 };   // £ per 1,000
+var S = { data: null, label: null, group: false, sort: 'newest', open: null, win: {}, charts: {} };
+var LS = { get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
+function rates() { return { sp: parseFloat(LS.get('cr_sp')) || DEF.sp, yt: parseFloat(LS.get('cr_yt')) || DEF.yt }; }
+var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+function pd(s) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || ''); return m ? Date.UTC(+m[1], m[2] - 1, +m[3]) : null; }
+function iso(t) { return new Date(t).toISOString().slice(0, 10); }
+function fd(t) { var d = new Date(t); return d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()]; }
+function fdy(t) { var d = new Date(t); return d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()] + ' ' + d.getUTCFullYear(); }
+function today() { var n = new Date(); return Date.UTC(n.getFullYear(), n.getMonth(), n.getDate()); }
+function gbp(v) { if (v == null || isNaN(v)) return '-'; return '£' + (v >= 1000 ? Math.round(v).toLocaleString('en-GB') : v >= 100 ? Math.round(v) : v.toFixed(2)); }
+function num(v) { return v == null ? '-' : Math.round(v).toLocaleString('en-GB'); }
+function short(v) { if (v == null) return '-'; var a = Math.abs(v); return a >= 1e6 ? (v / 1e6).toFixed(a >= 1e7 ? 0 : 1) + 'M' : a >= 1e4 ? Math.round(v / 1e3) + 'K' : num(v); }
+function ago(t) { var days = Math.round((today() - t) / DAY); return days < 14 ? days + ' day' + (days === 1 ? '' : 's') + ' ago' : days < 70 ? Math.round(days / 7) + ' weeks ago' : Math.round(days / 30) + ' months ago'; }
 
-let campaigns = [];
-let history = {};
-
-const fmtGBP = n => (n === null || n === undefined) ? '—' :
-  new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', maximumFractionDigits: 0 }).format(n);
-const fmtNum = n => (n === null || n === undefined) ? '—' : n.toLocaleString('en-GB');
-
-async function loadData() {
-  const [cRes, hRes] = await Promise.all([
-    fetch('data/campaigns.json?_=' + Date.now()),
-    fetch('data/history.json?_=' + Date.now())
-  ]);
-  campaigns = await cRes.json();
-  history = await hRes.json();
-  populateClientDropdown();
-  renderClients();
+// ---- series helpers. A series is [[iso, runningTotal], ...] sorted.
+function pts(series) { return (series || []).map(function (p) { return [pd(p[0]), p[1]]; }).filter(function (p) { return p[0] != null && p[1] != null; }); }
+// last day the total really moved (Spotify reports 1-2 days late, so trailing flat days are "not in yet")
+function reportedEnd(p) { for (var i = p.length - 1; i > 0; i--) if (p[i][1] !== p[i - 1][1]) return p[i][0]; return p.length ? p[0][0] : null; }
+function at(p, t) { var v = null; for (var i = 0; i < p.length && p[i][0] <= t; i++) v = p[i][1]; return v; }
+// gained between the day before s and e. If the series has no value before s:
+//  - it started on (or just after) release day, so before that it was 0
+//  - otherwise Songstats picked the record up late: count from the first known day and flag it
+function gained(p, s, e, rel) {
+  if (!p.length) return { v: null };
+  var end = at(p, e); if (end == null) return { v: 0 };
+  var b = at(p, s - DAY), partial = false;
+  if (b == null) {
+    if (rel != null && p[0][0] <= rel + 2 * DAY) b = 0;
+    else { b = p[0][1]; partial = true; }
+  }
+  return { v: Math.max(0, end - b), partial: partial, from: partial ? p[0][0] : null };
+}
+// daily figures: a jump after flat days is spread evenly over those days; days after the last real update are left out
+function daily(p) {
+  var out = {};
+  for (var i = 1; i < p.length; i++) {
+    if (p[i][1] === p[i - 1][1]) continue;
+    var j = i - 1; while (j > 0 && p[j - 1][1] === p[i - 1][1]) j--;
+    var days = Math.max(1, Math.round((p[i][0] - p[j][0]) / DAY)), g = Math.max(0, p[i][1] - p[i - 1][1]);
+    for (var k = 0; k < days; k++) { var t = p[i][0] - k * DAY; out[t] = (out[t] || 0) + g / days; }
+  }
+  return out;
 }
 
-function populateClientDropdown() {
-  const sel = document.getElementById('f_client_select');
-  const current = sel.value;
-  const clients = [...new Set(campaigns.map(c => c.client))].sort();
-  sel.innerHTML = '<option value="">Select client…</option>' +
-    clients.map(c => `<option value="${c}">${c}</option>`).join('') +
-    '<option value="__new__">+ Add new client</option>';
-  if (clients.includes(current)) sel.value = current;
-}
-
-function onClientSelectChange() {
-  const sel = document.getElementById('f_client_select');
-  const newInput = document.getElementById('f_client_new');
-  newInput.style.display = sel.value === '__new__' ? '' : 'none';
-  if (sel.value === '__new__') newInput.focus();
-}
-
-function getSelectedClient() {
-  const sel = document.getElementById('f_client_select');
-  if (sel.value === '__new__') return document.getElementById('f_client_new').value.trim();
-  return sel.value;
-}
-
-function filtered() {
-  const mode = document.getElementById('statusFilter').value;
-  if (mode === 'all') return campaigns;
-  return campaigns.filter(c => (c.status || 'active') === mode);
-}
-
-function latest(cid) { const h = history[cid] || []; return h.length ? h[h.length - 1] : null; }
-function previous(cid) { const h = history[cid] || []; return h.length > 1 ? h[h.length - 2] : null; }
-
-function pctDelta(cur, prev) {
-  if (cur === null || cur === undefined || !prev) return null;
-  if (!prev) return null;
-  return prev === 0 ? null : Math.round(((cur - prev) / prev) * 100);
-}
-
-function deltaBadge(cur, prevVal) {
-  const d = pctDelta(cur, prevVal);
-  if (d === null) return '';
-  const dir = d > 0 ? 'up' : d < 0 ? 'down' : '';
-  const arrow = d > 0 ? '▲' : d < 0 ? '▼' : '';
-  return `<span class="delta ${dir}">${arrow} ${Math.abs(d)}%</span>`;
-}
-
-function statusIcon(cur, prevVal) {
-  const d = pctDelta(cur, prevVal);
-  if (d === null) return '<div class="status-icon flat">–</div>';
-  if (d > 0) return '<div class="status-icon up">✓</div>';
-  if (d < 0) return '<div class="status-icon down">!</div>';
-  return '<div class="status-icon flat">–</div>';
-}
-
-function sparkline(canvas, seriesKey, cid, color) {
-  const h = history[cid] || [];
-  new Chart(canvas, {
-    type: 'line',
-    data: { labels: h.map(d => d.date), datasets: [{ data: h.map(d => d[seriesKey]), borderColor: color, borderWidth: 2, pointRadius: 0, tension: 0.35, fill: false }] },
-    options: { responsive: true, maintainAspectRatio: false, scales: { x: { display: false }, y: { display: false } }, plugins: { legend: { display: false }, tooltip: { enabled: false } } }
+// ---- campaigns: tracks from the same release go together, filed under their label
+function campaigns() {
+  var recs = (S.data && S.data.records) || {}, by = {}, R = rates();
+  Object.keys(recs).forEach(function (k) {
+    var r = recs[k], key = r.album_id || r.isrc;
+    (by[key] = by[key] || []).push(r);
   });
-}
-
-function renderClients() {
-  document.getElementById('breadcrumb').innerHTML = '<a onclick="renderClients()">Clients</a>';
-  const list = filtered();
-  const byClient = {};
-  list.forEach(c => { byClient[c.client] = byClient[c.client] || []; byClient[c.client].push(c); });
-
-  const view = document.getElementById('view');
-  const clientNames = Object.keys(byClient);
-  if (!clientNames.length) { view.innerHTML = '<div class="empty">No campaigns tracked yet — add one below.</div>'; return; }
-
-  view.innerHTML = '<div class="grid" id="clientGrid"></div>';
-  const grid = document.getElementById('clientGrid');
-
-  clientNames.forEach((client, i) => {
-    const camps = byClient[client];
-    const activeCount = camps.filter(c => (c.status || 'active') === 'active').length;
-    let reach = 0, prevReach = 0, streams = 0, prevStreams = 0, revenue = 0, playlists = 0;
-    camps.forEach(c => {
-      const l = latest(c.id), p = previous(c.id);
-      if (l) {
-        reach += (l.editorial_reach || 0) + (l.independent_reach || 0);
-        streams += l.total_streams || 0;
-        revenue += l.estimated_revenue_gbp || 0;
-        playlists += (l.editorial_count || 0) + (l.independent_count || 0);
-      }
-      if (p) { prevReach += (p.editorial_reach || 0) + (p.independent_reach || 0); prevStreams += p.total_streams || 0; }
+  return Object.keys(by).map(function (key) {
+    var trs = by[key], first = trs[0];
+    var starts = trs.map(function (r) { return pd(r.added_at || r.first_seen); }).filter(function (x) { return x != null; });
+    var start = starts.length ? Math.min.apply(null, starts) : today();
+    var rel = pd(first.release_date);
+    var labels = {}; trs.forEach(function (r) { if (r.label) labels[r.label] = (labels[r.label] || 0) + 1; });
+    var label = Object.keys(labels).sort(function (a, b) { return labels[b] - labels[a]; })[0] || 'Label not found';
+    var artists = []; trs.forEach(function (r) { (r.artists || []).forEach(function (a) { if (artists.indexOf(a) < 0) artists.push(a); }); });
+    var tr = trs.map(function (r) {
+      var sp = pts(r.streams), yt = pts(r.youtube_log), ytNow = (r.youtube || []).reduce(function (a, v) { return a + (v.views || 0); }, 0);
+      return { r: r, sp: sp, yt: yt, ytNow: ytNow, spEnd: reportedEnd(sp), streams: sp.length ? sp[sp.length - 1][1] : null };
     });
-
-    const card = document.createElement('div');
-    card.className = 'card';
-    card.onclick = () => renderClientDetail(client, camps);
-    card.innerHTML = `
-      <div class="accent-bar" style="background:${ACCENTS[i % ACCENTS.length]}"></div>
-      <div class="card-body">
-        <div class="card-top">
-          <div>
-            <div class="card-title">${client}</div>
-            <div class="card-sub">${camps.length} campaign${camps.length !== 1 ? 's' : ''} · ${activeCount} active</div>
-          </div>
-          ${statusIcon(streams, prevStreams)}
-        </div>
-        <div class="kpi-row">
-          <div class="kpi"><span class="n">${fmtNum(reach)}</span>${deltaBadge(reach, prevReach)}<div class="l">Playlist reach</div></div>
-          <div class="kpi"><span class="n">${fmtNum(streams)}</span>${deltaBadge(streams, prevStreams)}<div class="l">Total streams</div></div>
-        </div>
-        <div class="kpi-row">
-          <div class="kpi"><span class="n">${playlists}</span><div class="l">Playlist adds</div></div>
-          <div class="kpi"><span class="n money">${fmtGBP(revenue)}</span><div class="l">Est. revenue</div></div>
-        </div>
-      </div>
-    `;
-    grid.appendChild(card);
+    var c = { key: key, tracks: tr, start: start, end: start + 29 * DAY, rel: rel, label: label, artists: artists,
+      title: trs.length > 1 || first.album_type === 'album' || first.album_type === 'compilation' ? (first.album_name || first.title) : first.title,
+      image: first.image, multi: trs.length > 1, onPlaylist: trs.some(function (r) { return r.on_playlist; }),
+      errors: [].concat.apply([], trs.map(function (r) { return r.errors || []; })) };
+    c.dataEnd = Math.max.apply(null, tr.map(function (t) { return t.spEnd || 0; }).concat([0])) || today();
+    c.streams = tr.reduce(function (a, t) { return a + (t.streams || 0); }, 0);
+    c.ytViews = tr.reduce(function (a, t) { return a + t.ytNow; }, 0);
+    c.lifeSp = c.streams * R.sp / 1000; c.lifeYt = c.ytViews * R.yt / 1000; c.life = c.lifeSp + c.lifeYt;
+    c.camp = windowRev(c, c.start, Math.min(c.end, c.dataEnd));
+    c.after = c.dataEnd > c.end ? windowRev(c, c.end + DAY, c.dataEnd) : null;
+    c.last7 = windowRev(c, c.dataEnd - 6 * DAY, c.dataEnd);
+    c.weeks = []; for (var w = 7; w >= 0; w--) c.weeks.push(windowRev(c, c.dataEnd - (w * 7 + 6) * DAY, c.dataEnd - w * 7 * DAY).total);
+    c.live = today() <= c.end;
+    c.firstData = Math.min.apply(null, tr.map(function (t) { return t.sp.length ? t.sp[0][0] : 9e15; }));
+    return c;
   });
 }
-
-function renderClientDetail(client, camps) {
-  document.getElementById('breadcrumb').innerHTML = `<a onclick="renderClients()">Clients</a> / ${client}`;
-  const view = document.getElementById('view');
-  view.innerHTML = '<div class="grid" id="campGrid"></div>';
-  const grid = document.getElementById('campGrid');
-
-  camps.forEach((c, i) => {
-    const l = latest(c.id) || {}, p = previous(c.id) || {};
-    const card = document.createElement('div');
-    card.className = 'card';
-    card.onclick = () => renderCampaignDetail(c);
-    card.innerHTML = `
-      <div class="accent-bar" style="background:${ACCENTS[i % ACCENTS.length]}"></div>
-      <div class="card-body">
-        <div class="card-top">
-          <div>
-            <div class="card-title">${c.track}</div>
-            <div class="card-sub">${c.artist} · started ${c.start_date || '—'}</div>
-          </div>
-          ${statusIcon(l.total_streams, p.total_streams)}
-        </div>
-        <div class="kpi-row">
-          <div class="kpi"><span class="n">${fmtNum((l.editorial_reach || 0) + (l.independent_reach || 0))}</span><div class="l">Reach</div></div>
-          <div class="kpi"><span class="n">${fmtNum(l.total_streams)}</span>${deltaBadge(l.total_streams, p.total_streams)}<div class="l">Streams</div></div>
-        </div>
-        <div class="kpi-row">
-          <div class="kpi"><span class="n money">${fmtGBP(l.estimated_revenue_gbp)}</span><div class="l">Est. revenue</div></div>
-        </div>
-        <canvas class="spark" id="spark-${c.id}"></canvas>
-      </div>
-    `;
-    grid.appendChild(card);
-  });
-
-  camps.forEach(c => { const canvas = document.getElementById(`spark-${c.id}`); if (canvas) sparkline(canvas, 'total_streams', c.id, '#9B7BF5'); });
-}
-
-function renderCampaignDetail(c) {
-  document.getElementById('breadcrumb').innerHTML =
-    `<a onclick="renderClients()">Clients</a> / <a onclick="renderClientDetail('${c.client}', campaigns.filter(x => x.client === '${c.client}'))">${c.client}</a> / ${c.track}`;
-
-  const view = document.getElementById('view');
-  const isArchived = (c.status || 'active') === 'archived';
-  const l = latest(c.id) || {};
-
-  view.innerHTML = `
-    <div class="campaign-actions">
-      ${isArchived
-        ? `<button onclick="setStatus('${c.id}','active')">Reactivate tracking</button>`
-        : `<button class="danger" onclick="setStatus('${c.id}','archived')">Archive / stop tracking</button>`}
-    </div>
-    <div class="estimate-note">Est. revenue uses a blended rate of £${(l.estimated_revenue_rate_gbp || 0.003).toFixed(3)}/stream — a directional estimate only, not an actual royalty figure. Real payouts vary by listener geography, subscription tier and distributor deal. Spotify also pays nothing at all until a track clears 1,000 streams in a rolling 12-month window, so a very new campaign may show a small estimate here that isn't real money yet.</div>
-    <div class="detail-charts">
-      <div class="chart-box"><h3>Total streams</h3><canvas id="d-streams"></canvas></div>
-      <div class="chart-box"><h3>Daily streams</h3><canvas id="d-daily"></canvas></div>
-      <div class="chart-box"><h3>Playlist reach (editorial + independent)</h3><canvas id="d-reach"></canvas></div>
-      <div class="chart-box"><h3>Estimated revenue (GBP)</h3><canvas id="d-revenue"></canvas></div>
-    </div>
-  `;
-
-  const h = history[c.id] || [];
-  const mk = (canvasId, fn, color) => new Chart(document.getElementById(canvasId), {
-    type: 'line',
-    data: { labels: h.map(d => d.date), datasets: [{ data: h.map(fn), borderColor: color, backgroundColor: color + '22', fill: true, tension: 0.35, pointRadius: 2 }] },
-    options: { responsive: true, plugins: { legend: { display: false } },
-      scales: { x: { ticks: { color: '#8B84AE', font: { size: 10 } }, grid: { color: '#EEEAF9' } },
-                y: { ticks: { color: '#8B84AE', font: { size: 10 } }, grid: { color: '#EEEAF9' } } } }
-  });
-
-  mk('d-streams', d => d.total_streams, '#3EE0C8');
-  mk('d-daily', d => d.daily_streams, '#3EE0C8');
-  mk('d-reach', d => (d.editorial_reach || 0) + (d.independent_reach || 0), '#9B7BF5');
-  mk('d-revenue', d => d.estimated_revenue_gbp, '#FFC15E');
-}
-
-document.getElementById('statusFilter').addEventListener('change', renderClients);
-
-document.getElementById('pat').value = localStorage.getItem('cd_pat') || '';
-document.getElementById('sotKey').value = localStorage.getItem('cd_sot') || '';
-document.getElementById('spId').value = localStorage.getItem('cd_spid') || '';
-document.getElementById('spSecret').value = localStorage.getItem('cd_spsec') || '';
-
-let _spToken = null, _spExp = 0;
-async function spToken() {
-  if (_spToken && Date.now() < _spExp) return _spToken;
-  const spId = document.getElementById('spId').value.trim();
-  const spSecret = document.getElementById('spSecret').value.trim();
-  const res = await fetch('https://accounts.spotify.com/api/token', {
-    method: 'POST',
-    headers: { Authorization: 'Basic ' + btoa(spId + ':' + spSecret), 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: 'grant_type=client_credentials'
-  });
-  if (!res.ok) throw new Error('Spotify auth failed (' + res.status + ')');
-  const data = await res.json();
-  _spToken = data.access_token;
-  _spExp = Date.now() + (data.expires_in - 30) * 1000;
-  return _spToken;
-}
-async function spGet(path) {
-  const tok = await spToken();
-  const res = await fetch('https://api.spotify.com/v1' + path, { headers: { Authorization: 'Bearer ' + tok } });
-  if (!res.ok) throw new Error('Spotify returned ' + res.status);
-  return res.json();
-}
-
-let pendingQueue = [];
-
-function renderResultCards(items) {
-  const results = document.getElementById('searchResults');
-  results.innerHTML = '';
-  items.forEach(item => {
-    const el = document.createElement('div');
-    el.className = 'card';
-    el.innerHTML = `
-      <div class="accent-bar" style="background:${ACCENTS[0]}"></div>
-      <div class="card-body" style="padding:12px 14px;">
-        <div style="font-size:13px;font-weight:700;color:var(--text);">${item.name}</div>
-        <div style="font-size:11px;color:var(--text-dim);margin-top:2px;">${item.artist || ''}${item.isrc ? ' · ' + item.isrc : ''}</div>
-        <div style="font-size:11px;color:var(--cyan);margin-top:6px;font-weight:700;">+ Click to queue</div>
-      </div>
-    `;
-    el.onclick = () => {
-      const client = getSelectedClient();
-      if (!client) { document.getElementById('adminMsg').className = 'admin-msg err'; document.getElementById('adminMsg').textContent = 'Pick or add a client above first.'; return; }
-      pendingQueue.push({
-        id: 'c' + Date.now() + Math.floor(Math.random() * 1000),
-        client,
-        artist: item.artist || '',
-        track: item.name || '',
-        isrc: item.isrc || '',
-        start_date: document.getElementById('f_start').value || '',
-        status: 'active'
-      });
-      renderPending();
-      document.getElementById('adminMsg').className = ''; document.getElementById('adminMsg').textContent = '';
-    };
-    results.appendChild(el);
-  });
-}
-
-function renderPending() {
-  const wrap = document.getElementById('pendingWrap');
-  const list = document.getElementById('pendingList');
-  document.getElementById('pendingCount').textContent = pendingQueue.length;
-  wrap.style.display = pendingQueue.length ? '' : 'none';
-  list.innerHTML = '';
-  pendingQueue.forEach((p, i) => {
-    const row = document.createElement('div');
-    row.style.cssText = 'display:flex; align-items:center; gap:10px; background:#fff; border:1px solid #DCD5F0; border-radius:8px; padding:8px 12px;';
-    row.innerHTML = `
-      <div style="flex:1; font-size:13px;"><strong>${p.track}</strong> <span style="color:#8B84AE;">— ${p.artist || 'artist?'} · ${p.client} · ${p.start_date || 'no date'}</span></div>
-      <button style="background:#FFE7EC; border:1px solid #FFB8C6; color:#C2295A; border-radius:6px; padding:4px 10px; font-size:12px; cursor:pointer;" onclick="removePending(${i})">Remove</button>
-    `;
-    list.appendChild(row);
-  });
-}
-
-function removePending(i) { pendingQueue.splice(i, 1); renderPending(); }
-
-async function searchTrack() {
-  const msg = document.getElementById('adminMsg');
-  msg.className = 'admin-msg'; msg.textContent = '';
-  document.getElementById('searchResults').innerHTML = '';
-
-  const sotKey = document.getElementById('sotKey').value.trim();
-  const spId = document.getElementById('spId').value.trim();
-  const spSecret = document.getElementById('spSecret').value.trim();
-  if (!sotKey || !spId || !spSecret) {
-    msg.className = 'admin-msg err';
-    msg.textContent = 'Paste your Spot On Track key and Spotify Client ID/Secret first.';
-    return;
-  }
-  localStorage.setItem('cd_sot', sotKey);
-  localStorage.setItem('cd_spid', spId);
-  localStorage.setItem('cd_spsec', spSecret);
-
-  const raw = document.getElementById('trackSearch').value.trim();
-  if (!raw) return;
-
-  const playlistMatch = raw.match(/open\.spotify\.com\/playlist\/([A-Za-z0-9]+)/);
-  const albumMatch = raw.match(/open\.spotify\.com\/album\/([A-Za-z0-9]+)/);
-  const trackMatch = raw.match(/open\.spotify\.com\/track\/([A-Za-z0-9]+)/);
-
-  try {
-    if (playlistMatch) {
-      const playlist = await spGet('/playlists/' + playlistMatch[1] + '?fields=name,tracks.items(track(id,name,external_ids,artists))');
-      const items = playlist.tracks.items.map(i => i.track).filter(t => t && t.external_ids && t.external_ids.isrc)
-        .map(t => ({ name: t.name, isrc: t.external_ids.isrc, artist: t.artists.map(a => a.name).join(' & ') }));
-      if (!items.length) { msg.className = 'admin-msg err'; msg.textContent = 'No tracks with ISRCs found in that playlist.'; return; }
-      renderResultCards(items);
-    } else if (albumMatch) {
-      const album = await spGet('/albums/' + albumMatch[1]);
-      const trackDetails = await Promise.all(album.tracks.items.map(t => spGet('/tracks/' + t.id).catch(() => null)));
-      const items = trackDetails.filter(t => t && t.external_ids && t.external_ids.isrc)
-        .map(t => ({ name: t.name, isrc: t.external_ids.isrc, artist: t.artists.map(a => a.name).join(' & ') }));
-      if (!items.length) { msg.className = 'admin-msg err'; msg.textContent = 'No tracks with ISRCs found in that album.'; return; }
-      renderResultCards(items);
-    } else {
-      const query = trackMatch ? ('https://open.spotify.com/track/' + trackMatch[1]) : raw;
-      const res = await fetch('https://www.spotontrack.com/api/v1/tracks?query=' + encodeURIComponent(query), { headers: { Authorization: 'Bearer ' + sotKey } });
-      if (!res.ok) throw new Error('Spot On Track returned ' + res.status);
-      const data = await res.json();
-      if (!data.length) { msg.className = 'admin-msg err'; msg.textContent = 'No results found.'; return; }
-      const items = await Promise.all(data.slice(0, 6).map(async t => {
-        let artist = '';
-        try {
-          const found = await spGet('/search?q=isrc:' + t.isrc + '&type=track&limit=1');
-          const sp = found?.tracks?.items?.[0];
-          if (sp) artist = sp.artists.map(a => a.name).join(' & ');
-        } catch (e) {}
-        return { name: t.name, isrc: t.isrc, artist };
-      }));
-      renderResultCards(items);
+function windowRev(c, s, e) {
+  var R = rates(), sp = 0, yt = 0, streams = 0, views = 0, partialSp = null, ytFrom = null;
+  c.tracks.forEach(function (t) {
+    var g = gained(t.sp, s, e, c.rel); if (g.v != null) { streams += g.v; if (g.partial) partialSp = Math.max(partialSp || 0, g.from); }
+    if (t.yt.length) {
+      var y = gained(t.yt, s, e, c.rel);
+      if (y.v != null) { views += y.v; if (y.partial) ytFrom = Math.max(ytFrom || 0, y.from); }
     }
-  } catch (e) {
-    msg.className = 'admin-msg err'; msg.textContent = e.message;
-  }
-}
-
-// btoa() only handles Latin-1 correctly — any accented character, curly
-// quote, emoji, etc. in a client/artist/track name silently corrupts into
-// invalid bytes otherwise. This wraps it so the JSON is UTF-8 safe before
-// being base64-encoded for the GitHub API.
-function utf8ToBase64(str) {
-  return btoa(unescape(encodeURIComponent(str)));
-}
-
-async function githubGetCampaigns(pat) {
-  const res = await fetch(`https://api.github.com/repos/${REPO}/contents/data/campaigns.json?ref=${DATA_BRANCH}`, { headers: { Authorization: `Bearer ${pat}` } });
-  if (!res.ok) throw new Error(`GitHub read failed (${res.status})`);
-  const json = await res.json();
-  return { list: JSON.parse(atob(json.content)), sha: json.sha };
-}
-async function githubPutCampaigns(pat, list, sha, message) {
-  const res = await fetch(`https://api.github.com/repos/${REPO}/contents/data/campaigns.json`, {
-    method: 'PUT', headers: { Authorization: `Bearer ${pat}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, content: utf8ToBase64(JSON.stringify(list, null, 2) + '\n'), sha, branch: DATA_BRANCH })
   });
-  if (res.status === 409) return null; // stale sha — caller should retry
-  if (!res.ok) throw new Error(`GitHub write failed (${res.status})`);
-  return true;
+  sp = streams * R.sp / 1000; yt = views * R.yt / 1000;
+  return { sp: sp, yt: yt, total: sp + yt, streams: streams, views: views, partialSp: partialSp, ytFrom: ytFrom };
 }
 
-let _mutating = false;
-async function githubMutateCampaigns(pat, message, mutate) {
-  while (_mutating) await new Promise(r => setTimeout(r, 150)); // wait for any other write in flight
-  _mutating = true;
-  try {
-    for (let attempt = 0; attempt < 4; attempt++) {
-      const { list, sha } = await githubGetCampaigns(pat);
-      const mutated = mutate(list);
-      const ok = await githubPutCampaigns(pat, mutated, sha, message);
-      if (ok) return mutated;
-      await new Promise(r => setTimeout(r, 400 * (attempt + 1)));
-    }
-    throw new Error('GitHub write kept conflicting — try again in a moment.');
-  } finally {
-    _mutating = false;
-  }
-}
-
-async function savePending() {
-  const msg = document.getElementById('adminMsg');
-  const btn = document.getElementById('saveBtn');
-  msg.className = 'admin-msg'; msg.textContent = '';
-
-  const pat = document.getElementById('pat').value.trim();
-  if (!pat) { msg.className = 'admin-msg err'; msg.textContent = 'Paste your PAT first.'; return; }
-  localStorage.setItem('cd_pat', pat);
-  if (!pendingQueue.length) return;
-
-  btn.disabled = true; btn.textContent = 'Saving…';
-  try {
-    const toAdd = pendingQueue;
-    const updated = await githubMutateCampaigns(pat, `Add ${toAdd.length} campaign${toAdd.length > 1 ? 's' : ''}`, list => [...list, ...toAdd]);
-    campaigns = updated;
-    populateClientDropdown();
-    pendingQueue = [];
-    renderPending();
-    msg.className = 'admin-msg ok';
-    msg.textContent = `Saved ${toAdd.length} campaign${toAdd.length > 1 ? 's' : ''} in one write. They'll appear once the next sync runs.`;
-  } catch (e) {
-    msg.className = 'admin-msg err'; msg.textContent = e.message;
-  } finally {
-    btn.disabled = false; btn.textContent = 'Save all pending campaigns';
-  }
-}
-
-async function setStatus(id, status) {
-  const pat = localStorage.getItem('cd_pat');
-  if (!pat) { alert('Paste your GitHub PAT in the "Add / edit campaigns" panel first.'); return; }
-  try {
-    const updated = await githubMutateCampaigns(pat, `${status === 'archived' ? 'Archive' : 'Reactivate'}: ${id}`, list => {
-      const entry = list.find(c => c.id === id);
-      if (!entry) throw new Error('Campaign not found');
-      entry.status = status;
-      return list;
+// ---- render
+function render() {
+  var cs = campaigns(), R = rates();
+  var g = S.data && S.data.generated_at;
+  document.getElementById('updated').textContent = g ? 'Updated ' + fd(pd(g)) + ', ' + g.slice(11, 16) + ' UTC' : 'Not synced yet';
+  // tiles
+  var life = cs.reduce(function (a, c) { return a + c.life; }, 0), lifeSp = cs.reduce(function (a, c) { return a + c.lifeSp; }, 0), lifeYt = life - lifeSp;
+  var m30 = cs.reduce(function (a, c) { return a + windowRev(c, c.dataEnd - 29 * DAY, c.dataEnd).total; }, 0);
+  var live = cs.filter(function (c) { return c.live; });
+  var liveCamp = live.reduce(function (a, c) { return a + c.camp.total; }, 0);
+  var recs = Object.keys((S.data && S.data.records) || {}).length;
+  document.getElementById('tiles').innerHTML =
+    tile('Revenue generated, all records', gbp(life), 'Spotify ' + gbp(lifeSp) + ' · YouTube Music ' + gbp(lifeYt)) +
+    tile('Last 30 days', gbp(m30), 'across every record, live or finished') +
+    tile('Live campaigns', live.length, live.length ? gbp(liveCamp) + ' so far this campaign month' : 'none in their first 30 days') +
+    tile('Records tracked', recs, cs.length + ' campaign' + (cs.length === 1 ? '' : 's') + ' · ' + Object.keys(cs.reduce(function (a, c) { a[c.label] = 1; return a; }, {})).length + ' labels');
+  // label chips
+  var counts = {}; cs.forEach(function (c) { counts[c.label] = (counts[c.label] || 0) + 1; });
+  var names = Object.keys(counts).sort(function (a, b) { return a.localeCompare(b); });
+  if (S.label && !counts[S.label]) S.label = null;
+  document.getElementById('labels').innerHTML = '<button class="chip' + (S.label ? '' : ' on') + '" data-l="">All<span class="n">' + cs.length + '</span></button>' +
+    names.map(function (n) { return '<button class="chip' + (S.label === n ? ' on' : '') + '" data-l="' + esc(n) + '">' + esc(n) + '<span class="n">' + counts[n] + '</span></button>'; }).join('');
+  // table
+  var list = cs.filter(function (c) { return !S.label || c.label === S.label; });
+  var sorters = {
+    newest: function (a, b) { return b.start - a.start; }, name: function (a, b) { return (a.artists[0] || '').localeCompare(b.artists[0] || ''); },
+    life: function (a, b) { return b.life - a.life; }, camp: function (a, b) { return b.camp.total - a.camp.total; },
+    after: function (a, b) { return (b.after ? b.after.total : -1) - (a.after ? a.after.total : -1); }, last7: function (a, b) { return b.last7.total - a.last7.total; },
+    status: function (a, b) { return (b.live - a.live) || b.start - a.start; }
+  };
+  list.sort(sorters[S.sort] || sorters.newest);
+  var h = function (k, l) { return '<button class="th' + (S.sort === k ? ' on' : '') + '" data-s="' + k + '">' + l + (S.sort === k ? ' ↓' : '') + '</button>'; };
+  var head = '<div class="row h"><span></span>' + h('name', 'Record') + h('status', 'Campaign') + h('life', 'Since release') + h('camp', 'Campaign month') + h('after', 'After campaign') + h('last7', 'Last 7 days') + '<span class="th" style="cursor:default">8 weeks</span><span></span></div>';
+  var body = '';
+  if (!list.length) body = '<div class="empty">' + (S.data ? 'Nothing yet. Records appear here after the next sync once they are on Listen Up Priorities.' : 'Loading…') + '</div>';
+  else if (S.group) {
+    var byL = {}; list.forEach(function (c) { (byL[c.label] = byL[c.label] || []).push(c); });
+    Object.keys(byL).sort(function (a, b) { return byL[b].reduce(function (x, c) { return x + c.life; }, 0) - byL[a].reduce(function (x, c) { return x + c.life; }, 0); }).forEach(function (l) {
+      var cs2 = byL[l], tot = cs2.reduce(function (x, c) { return x + c.life; }, 0), t30 = cs2.reduce(function (x, c) { return x + c.last7.total; }, 0);
+      body += '<div class="grp"><span>' + esc(l) + ' <span class="tot">' + cs2.length + ' campaign' + (cs2.length === 1 ? '' : 's') + '</span></span><span class="tot">since release<b>' + gbp(tot) + '</b> &nbsp; last 7 days<b>' + gbp(t30) + '</b></span></div>' + cs2.map(row).join('');
     });
-    campaigns = updated;
-    alert(status === 'archived' ? 'Archived — this campaign will stop being synced.' : 'Reactivated — this campaign will resume syncing.');
-    renderClients();
-  } catch (e) { alert(e.message); }
+  } else body = list.map(row).join('');
+  Object.keys(S.charts).forEach(function (k) { S.charts[k].destroy(); delete S.charts[k]; });
+  document.getElementById('table').innerHTML = head + body;
+  if (S.open) { var c = list.filter(function (x) { return x.key === S.open; })[0]; if (c) drawDetail(c); }
+}
+function tile(l, v, s) { return '<div class="tile"><div class="l">' + l + '</div><div class="v num">' + v + '</div><div class="s">' + s + '</div></div>'; }
+function spark(vals) {
+  var v = vals.map(function (x) { return x || 0; }), w = 110, hgt = 26, max = Math.max.apply(null, v.concat([0.0001]));
+  var bw = w / v.length;
+  return '<svg width="' + w + '" height="' + hgt + '" aria-label="Weekly revenue, last 8 weeks">' + v.map(function (x, i) {
+    var bh = Math.max(1, x / max * (hgt - 2)); return '<rect x="' + (i * bw + 1).toFixed(1) + '" y="' + (hgt - bh).toFixed(1) + '" width="' + (bw - 3).toFixed(1) + '" height="' + bh.toFixed(1) + '" rx="1.5" fill="' + (i === v.length - 1 ? '#5b7cfa' : '#3a3f5c') + '"/>';
+  }).join('') + '</svg>';
+}
+function status(c) {
+  if (c.live) { var day = Math.floor((today() - c.start) / DAY) + 1; return '<div class="st"><span class="live">Live</span> · day ' + day + ' of 30<br><span class="muted">from ' + fd(c.start) + '</span></div>'; }
+  return '<div class="st"><span class="ended">Ended ' + ago(c.end) + '</span><br><span class="muted">' + fd(c.start) + ' - ' + fd(c.end) + '</span></div>';
+}
+function cell(v, sub) { return '<div class="cell num"><b>' + v + '</b><span>' + (sub || '&nbsp;') + '</span></div>'; }
+function row(c) {
+  var name = c.artists.slice(0, 3).join(', ') + (c.artists.length > 3 ? ' +' + (c.artists.length - 3) : '');
+  return '<div class="row c' + (S.open === c.key ? ' open' : '') + '" data-k="' + esc(c.key) + '">' +
+    (c.image ? '<img class="art" src="' + esc(c.image) + '" alt="" loading="lazy" onerror="this.style.visibility=\'hidden\'">' : '<div class="art"></div>') +
+    '<div class="nm"><div class="t">' + esc(c.title) + (c.multi ? ' <span class="muted" style="font-weight:500">(' + c.tracks.length + ' tracks)</span>' : '') + '</div><div class="a">' + esc(name) + ' · ' + esc(c.label) + '</div></div>' +
+    status(c) +
+    cell(gbp(c.life), short(c.streams) + ' streams') +
+    cell(gbp(c.camp.total), c.camp.partialSp ? 'data from ' + fd(c.camp.partialSp) : short(c.camp.streams) + ' streams') +
+    cell(c.after ? gbp(c.after.total) : '-', c.after ? short(c.after.streams) + ' streams' : 'still live') +
+    cell(gbp(c.last7.total), 'to ' + fd(c.dataEnd)) +
+    '<div>' + spark(c.weeks) + '</div><svg class="chev" width="14" height="14" viewBox="0 0 16 16"><path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg></div>' +
+    (S.open === c.key ? detailHtml(c) : '');
 }
 
-loadData();
+// ---- one campaign opened: revenue over time with the campaign month shaded, a window slider, tracks
+function range(c) { var from = c.rel != null ? Math.min(c.rel, c.start) : Math.min(c.firstData, c.start); return { from: from, to: c.dataEnd, days: Math.max(1, Math.round((c.dataEnd - from) / DAY)) }; }
+function getWin(c) { var w = S.win[c.key]; if (!w) { w = S.win[c.key] = { s: c.start, e: Math.min(c.end, c.dataEnd) }; } return w; }
+function detailHtml(c) {
+  var rg = range(c), w = getWin(c), wr = windowRev(c, w.s, w.e);
+  var si = Math.round((w.s - rg.from) / DAY), ei = Math.round((w.e - rg.from) / DAY);
+  var warn = [];
+  if (c.rel != null && c.firstData > c.rel + 2 * DAY && c.firstData < 9e15) warn.push('Songstats only has Spotify streams for this record from ' + fdy(c.firstData) + '. The since-release total is right, but windows before that date can\'t be split out.');
+  if (c.ytViews && c.tracks.some(function (t) { return t.yt.length && t.yt[0][0] > w.s; })) warn.push('YouTube Music views are logged daily from ' + fdy(Math.min.apply(null, c.tracks.filter(function (t) { return t.yt.length; }).map(function (t) { return t.yt[0][0]; }))) + ', so the window only counts YouTube views from then. The since-release YouTube figure is complete.');
+  if (c.errors.length) warn.push('Last sync had problems: ' + c.errors.join('; '));
+  var R = rates();
+  var trs = c.tracks.map(function (t) {
+    var life = (t.streams || 0) * R.sp / 1000 + t.ytNow * R.yt / 1000, g = gained(t.sp, w.s, w.e, c.rel);
+    return '<tr><td>' + esc(t.r.title) + (t.r.on_playlist ? '' : '<span class="off">off playlist</span>') + '</td><td class="n num">' + num(t.streams) + '</td><td class="n num">' + num(t.ytNow) + '</td><td class="n num">' + num(g.v) + '</td><td class="n num"><b>' + gbp(life) + '</b></td></tr>';
+  }).join('');
+  return '<div class="det" data-det="' + esc(c.key) + '">' +
+    '<div class="dstats">' +
+      ds('Since release', gbp(c.life), 'Spotify ' + gbp(c.lifeSp) + ' · YouTube Music ' + gbp(c.lifeYt)) +
+      ds('Campaign month', gbp(c.camp.total), fd(c.start) + ' - ' + fd(Math.min(c.end, c.dataEnd)) + ' · ' + short(c.camp.streams) + ' streams') +
+      ds('After the campaign', c.after ? gbp(c.after.total) : '-', c.after ? 'since ' + fd(c.end + DAY) + ' · ' + short(c.after.streams) + ' streams' : 'campaign still live') +
+      '<div class="ds win"><div class="l">Selected window</div><div class="v num" id="wv-' + esc(c.key) + '">' + gbp(wr.total) + '</div><div class="s" id="ws-' + esc(c.key) + '">' + winText(w, wr) + '</div></div>' +
+    '</div>' +
+    '<div class="chartbox"><div style="height:240px"><canvas id="ch-' + esc(c.key) + '"></canvas></div>' +
+      '<div class="slider"><div class="track"></div><div class="fill" id="sf-' + esc(c.key) + '"></div>' +
+      '<input type="range" min="0" max="' + rg.days + '" value="' + si + '" data-w="s" data-k="' + esc(c.key) + '" aria-label="Window start">' +
+      '<input type="range" min="0" max="' + rg.days + '" value="' + ei + '" data-w="e" data-k="' + esc(c.key) + '" aria-label="Window end"></div>' +
+      '<div class="winbar"><span>Drag the two handles to pick any window. Green shading is the campaign month.</span><span class="btns">' +
+        '<button class="chip" data-p="camp" data-k="' + esc(c.key) + '">Campaign month</button><button class="chip" data-p="after" data-k="' + esc(c.key) + '">After campaign</button><button class="chip" data-p="all" data-k="' + esc(c.key) + '">Since release</button><button class="chip" data-p="30" data-k="' + esc(c.key) + '">Last 30 days</button></span></div>' +
+      '<div class="legend"><span><i style="background:#5b7cfa"></i>Daily revenue (Spotify + YouTube Music)</span><span><i style="background:#34d399"></i>Revenue to date</span><span><i style="background:rgba(52,211,153,.15)"></i>Campaign month</span><span><i style="background:rgba(91,124,250,.18)"></i>Selected window</span></div></div>' +
+    (warn.length ? warn.map(function (x) { return '<p class="warn">' + esc(x) + '</p>'; }).join('') : '') +
+    '<table class="tracks"><tr><th>Track</th><th class="n">Spotify streams</th><th class="n">YouTube Music views</th><th class="n">Streams in window</th><th class="n">Revenue since release</th></tr>' + trs + '</table>' +
+  '</div>';
+}
+function ds(l, v, s) { return '<div class="ds"><div class="l">' + l + '</div><div class="v num">' + v + '</div><div class="s">' + s + '</div></div>'; }
+function winText(w, wr) {
+  var days = Math.round((w.e - w.s) / DAY) + 1;
+  return fd(w.s) + ' - ' + fd(w.e) + ' (' + days + ' day' + (days === 1 ? '' : 's') + ') · ' + short(wr.streams) + ' streams' + (wr.views ? ' · ' + short(wr.views) + ' YT views' : '');
+}
+function drawDetail(c) {
+  var cv = document.getElementById('ch-' + c.key); if (!cv) return;
+  var rg = range(c), R = rates(), labels = [], dailyRev = [], cum = [];
+  var dsp = c.tracks.map(function (t) { return daily(t.sp); }), dyt = c.tracks.map(function (t) { return daily(t.yt); });
+  var running = 0, hasBefore = false;
+  for (var t = rg.from; t <= rg.to; t += DAY) {
+    var v = 0; dsp.forEach(function (m) { v += (m[t] || 0) * R.sp / 1000; }); dyt.forEach(function (m) { v += (m[t] || 0) * R.yt / 1000; });
+    labels.push(t); dailyRev.push(+v.toFixed(2));
+  }
+  // revenue to date uses the real running totals so it always lands on the since-release figure
+  labels.forEach(function (t) {
+    var tot = 0; c.tracks.forEach(function (tr) { var a = at(tr.sp, t); if (a != null) tot += a * R.sp / 1000; var y = at(tr.yt, t); if (y != null) tot += y * R.yt / 1000; });
+    cum.push(+tot.toFixed(2));
+  });
+  var shade = { id: 'shade', beforeDatasetsDraw: function (ch) {
+    var x = ch.scales.x, a = ch.chartArea, ctx = ch.ctx, w = getWin(c);
+    function band(s, e, col) { var i0 = Math.round((s - rg.from) / DAY), i1 = Math.round((e - rg.from) / DAY); if (i1 < 0 || i0 > labels.length - 1) return; var x0 = x.getPixelForValue(Math.max(0, i0)) - 3, x1 = x.getPixelForValue(Math.min(labels.length - 1, i1)) + 3; ctx.fillStyle = col; ctx.fillRect(x0, a.top, x1 - x0, a.bottom - a.top); }
+    ctx.save(); band(c.start, c.end, 'rgba(52,211,153,.10)'); band(w.s, w.e, 'rgba(91,124,250,.16)'); ctx.restore();
+  } };
+  S.charts[c.key] = new Chart(cv, {
+    type: 'bar',
+    data: { labels: labels, datasets: [
+      { type: 'bar', label: 'Daily revenue', data: dailyRev, backgroundColor: '#5b7cfa', borderRadius: 2, yAxisID: 'y', order: 2, barPercentage: 1, categoryPercentage: .8 },
+      { type: 'line', label: 'Revenue to date', data: cum, borderColor: '#34d399', borderWidth: 2, pointRadius: 0, tension: .25, yAxisID: 'y2', order: 1 }
+    ] },
+    options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { title: function (it) { return fdy(labels[it[0].dataIndex]); }, label: function (it) { return ' ' + it.dataset.label + ': ' + gbp(it.raw); } } } },
+      scales: {
+        x: { ticks: { color: '#62626c', font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8, callback: function (v) { return fd(labels[v]); } }, grid: { display: false } },
+        y: { position: 'left', ticks: { color: '#62626c', font: { size: 10 }, callback: function (v) { return '£' + v; } }, grid: { color: 'rgba(255,255,255,.05)' }, title: { display: true, text: 'per day', color: '#62626c', font: { size: 10 } } },
+        y2: { position: 'right', ticks: { color: '#62626c', font: { size: 10 }, callback: function (v) { return gbp(v); } }, grid: { display: false }, title: { display: true, text: 'to date', color: '#62626c', font: { size: 10 } } }
+      } },
+    plugins: [shade]
+  });
+  fillBar(c);
+}
+function fillBar(c) {
+  var rg = range(c), w = getWin(c), f = document.getElementById('sf-' + c.key); if (!f) return;
+  var a = (w.s - rg.from) / DAY / rg.days, b = (w.e - rg.from) / DAY / rg.days;
+  f.style.left = 'calc(8px + ' + (a * 100) + '% - ' + (a * 16) + 'px)'; f.style.width = 'calc(' + ((b - a) * 100) + '% - ' + ((b - a) * 16) + 'px)';
+}
+function updateWin(c) {
+  var w = getWin(c), wr = windowRev(c, w.s, w.e);
+  document.getElementById('wv-' + c.key).textContent = gbp(wr.total);
+  document.getElementById('ws-' + c.key).textContent = winText(w, wr);
+  fillBar(c);
+  if (S.charts[c.key]) S.charts[c.key].update('none');
+}
+function findC(k) { return campaigns().filter(function (c) { return c.key === k; })[0]; }
+
+// ---- events
+document.addEventListener('click', function (ev) {
+  var t = ev.target;
+  var chip = t.closest('[data-l]'); if (chip) { S.label = chip.dataset.l || null; render(); return; }
+  var th = t.closest('[data-s]'); if (th) { S.sort = th.dataset.s; render(); return; }
+  var p = t.closest('[data-p]');
+  if (p) {
+    var c = findC(p.dataset.k), rg = range(c), w = getWin(c);
+    if (p.dataset.p === 'camp') { w.s = c.start; w.e = Math.min(c.end, c.dataEnd); }
+    if (p.dataset.p === 'after') { if (c.dataEnd <= c.end) return; w.s = c.end + DAY; w.e = c.dataEnd; }
+    if (p.dataset.p === 'all') { w.s = rg.from; w.e = rg.to; }
+    if (p.dataset.p === '30') { w.s = Math.max(rg.from, c.dataEnd - 29 * DAY); w.e = c.dataEnd; }
+    var ins = document.querySelectorAll('input[data-k="' + c.key + '"]');
+    ins[0].value = Math.round((w.s - rg.from) / DAY); ins[1].value = Math.round((w.e - rg.from) / DAY);
+    updateWin(c); return;
+  }
+  if (t.closest('.det')) return;
+  var r = t.closest('.row.c');
+  if (r) { S.open = S.open === r.dataset.k ? null : r.dataset.k; var y = window.scrollY; render(); window.scrollTo(0, y); }
+});
+document.addEventListener('input', function (ev) {
+  var t = ev.target;
+  if (t.dataset && t.dataset.w) {
+    var c = findC(t.dataset.k), rg = range(c), w = getWin(c), ins = document.querySelectorAll('input[data-k="' + c.key + '"]');
+    var a = +ins[0].value, b = +ins[1].value;
+    if (a > b) { if (t.dataset.w === 's') { a = b; ins[0].value = a; } else { b = a; ins[1].value = b; } }
+    w.s = rg.from + a * DAY; w.e = rg.from + b * DAY; updateWin(c);
+  }
+});
+document.getElementById('grp').addEventListener('change', function (e) { S.group = e.target.checked; render(); });
+document.getElementById('ratesBtn').addEventListener('click', function () {
+  var R = rates(); document.getElementById('rSp').value = R.sp; document.getElementById('rYt').value = R.yt;
+  document.getElementById('rates').classList.toggle('on');
+});
+['rSp', 'rYt'].forEach(function (id) { document.getElementById(id).addEventListener('change', function (e) { var v = parseFloat(e.target.value); if (v > 0) { LS.set(id === 'rSp' ? 'cr_sp' : 'cr_yt', v); render(); } }); });
+document.getElementById('ratesReset').addEventListener('click', function () { LS.set('cr_sp', ''); LS.set('cr_yt', ''); document.getElementById('rSp').value = DEF.sp; document.getElementById('rYt').value = DEF.yt; render(); });
+
+fetch('data/dashboard.json?t=' + Date.now()).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+  .then(function (d) { S.data = d; render(); })
+  .catch(function () { S.data = { records: {} }; render(); });
+render();
+})();
 </script>
 </body>
 </html>
