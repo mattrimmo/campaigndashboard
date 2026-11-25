@@ -26,8 +26,6 @@ jobs:
       - name: Sync
         env:
           SONGSTATS_API_KEY: ${{ secrets.SONGSTATS_API_KEY }}
-          SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
-          SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
         run: python scripts/sync.py
       - name: Commit data
         if: always()
