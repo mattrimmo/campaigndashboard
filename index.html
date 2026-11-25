@@ -194,7 +194,7 @@ function campaigns() {
       return { r: r, sp: sp, yt: yt, ytNow: ytNow, spEnd: reportedEnd(sp), streams: sp.length ? sp[sp.length - 1][1] : null };
     });
     var c = { key: key, tracks: tr, start: start, end: start + 29 * DAY, rel: rel, label: label, artists: artists,
-      title: trs.length > 1 || first.album_type === 'album' || first.album_type === 'compilation' ? (first.album_name || first.title) : first.title,
+      title: trs.length > 1 ? (first.album_name || trs.map(function (r) { return r.title; }).join(' / ')) : first.title,
       image: first.image, multi: trs.length > 1, onPlaylist: trs.some(function (r) { return r.on_playlist; }),
       errors: [].concat.apply([], trs.map(function (r) { return r.errors || []; })) };
     c.dataEnd = Math.max.apply(null, tr.map(function (t) { return t.spEnd || 0; }).concat([0])) || today();
@@ -286,7 +286,7 @@ function row(c) {
   var name = c.artists.slice(0, 3).join(', ') + (c.artists.length > 3 ? ' +' + (c.artists.length - 3) : '');
   return '<div class="row c' + (S.open === c.key ? ' open' : '') + '" data-k="' + esc(c.key) + '">' +
     (c.image ? '<img class="art" src="' + esc(c.image) + '" alt="" loading="lazy" onerror="this.style.visibility=\'hidden\'">' : '<div class="art"></div>') +
-    '<div class="nm"><div class="t">' + esc(c.title) + (c.multi ? ' <span class="muted" style="font-weight:500">(' + c.tracks.length + ' tracks)</span>' : '') + '</div><div class="a">' + esc(name) + ' · ' + esc(c.label) + '</div></div>' +
+    '<div class="nm"><div class="t" title="' + esc(c.title) + '">' + (c.multi ? '<span class="muted" style="font-weight:500">' + c.tracks.length + ' tracks: </span>' : '') + esc(c.title) + '</div><div class="a">' + esc(name) + ' · ' + esc(c.label) + '</div></div>' +
     status(c) +
     cell(gbp(c.life), short(c.streams) + ' streams') +
     cell(gbp(c.camp.total), c.camp.partialSp ? 'data from ' + fd(c.camp.partialSp) : short(c.camp.streams) + ' streams') +
